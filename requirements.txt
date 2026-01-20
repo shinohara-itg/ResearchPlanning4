@@ -8,3 +8,5 @@ pandas
 jpholiday
 pytz
 python-docx
+openpyxl
+numpy
