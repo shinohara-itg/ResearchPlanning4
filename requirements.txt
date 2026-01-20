@@ -7,3 +7,4 @@ openai
 pandas
 jpholiday
 pytz
+python-docx
