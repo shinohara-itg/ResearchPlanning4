@@ -100,10 +100,10 @@ if "dbg_enabled" not in st.session_state:
     st.session_state["dbg_enabled"] = True
 
 
-if "__dbg_before_upsert" in st.session_state:
-    st.warning(f"DEBUG before_upsert: {st.session_state['__dbg_before_upsert']}")
-if "__dbg_after_upsert" in st.session_state:
-    st.warning(f"DEBUG after_upsert: {st.session_state['__dbg_after_upsert']}")
+# if "__dbg_before_upsert" in st.session_state:
+#     st.warning(f"DEBUG before_upsert: {st.session_state['__dbg_before_upsert']}")
+# if "__dbg_after_upsert" in st.session_state:
+#     st.warning(f"DEBUG after_upsert: {st.session_state['__dbg_after_upsert']}")
 
 
 
@@ -4360,10 +4360,10 @@ with center:
         st.session_state["__dbg_prev_mode"] = mode
         st.session_state["__dbg_prev_snap"] = after
 
-    dbg = st.session_state.get("__dbg_mode_change")
-    if dbg:
-        st.warning(f"DEBUG mode change: {dbg['from']} -> {dbg['to']}")
-        st.json(dbg["diff"])
+    # dbg = st.session_state.get("__dbg_mode_change")
+    # if dbg:
+    #     st.warning(f"DEBUG mode change: {dbg['from']} -> {dbg['to']}")
+    #     st.json(dbg["diff"])
 
 
 
@@ -4376,11 +4376,11 @@ with center:
     if mode == "オリエン内容の整理":
         st.markdown("## オリエン内容の整理")
 
-        st.caption(
-            f"DEBUG orien_ai_draft len={len(st.session_state.get('data_orien_outline_ai_draft',''))} / "
-            f"manual len={len(st.session_state.get('data_orien_outline_manual',''))} / "
-            f"uploaded_docs={len(st.session_state.get('uploaded_docs',[]) or [])}"
-        )
+        # st.caption(
+        #     f"DEBUG orien_ai_draft len={len(st.session_state.get('data_orien_outline_ai_draft',''))} / "
+        #     f"manual len={len(st.session_state.get('data_orien_outline_manual',''))} / "
+        #     f"uploaded_docs={len(st.session_state.get('uploaded_docs',[]) or [])}"
+        # )
 
 
 
@@ -4632,16 +4632,16 @@ with center:
             st.session_state["__proposal_draft_hydrated"] = True
 
 
-        # ★rev側デバッグ（apply直後）
-        rev_dbg = get_active_revision() or {}
-        st.warning(
-            "DEBUG active rev contents: "
-            f"rev_id={rev_dbg.get('rev_id')} / "
-            f"label={rev_dbg.get('label')} / "
-            f"len(purpose_free)={len((rev_dbg.get('purpose_free') or '').strip())} / "
-            f"len(target_condition)={len((rev_dbg.get('target_condition') or '').strip())} / "
-            f"len(analysis_blocks)={len(rev_dbg.get('analysis_blocks', []) or [])}"
-        )
+        # # ★rev側デバッグ（apply直後）
+        # rev_dbg = get_active_revision() or {}
+        # st.warning(
+        #     "DEBUG active rev contents: "
+        #     f"rev_id={rev_dbg.get('rev_id')} / "
+        #     f"label={rev_dbg.get('label')} / "
+        #     f"len(purpose_free)={len((rev_dbg.get('purpose_free') or '').strip())} / "
+        #     f"len(target_condition)={len((rev_dbg.get('target_condition') or '').strip())} / "
+        #     f"len(analysis_blocks)={len(rev_dbg.get('analysis_blocks', []) or [])}"
+        # )
 
 
 
@@ -4669,9 +4669,9 @@ with center:
             "active_rev_id",
         ]
 
-        st.warning("DEBUG proposal_draft state (after apply): " + " / ".join(
-            [f"{k}={_len(st.session_state.get(k))}" for k in KEYS_TO_CHECK]
-        ) + f" / revisions={len(get_revisions() or [])}")
+        # st.warning("DEBUG proposal_draft state (after apply): " + " / ".join(
+        #     [f"{k}={_len(st.session_state.get(k))}" for k in KEYS_TO_CHECK]
+        # ) + f" / revisions={len(get_revisions() or [])}")
 
         st.markdown("## 企画書下書き")
 
@@ -4923,8 +4923,6 @@ with center:
                     disabled=(not pivot_committed or not selected_text),
                 ):
                     with st.spinner("KON〜サブクエスチョンを生成しています..."):
-                        # PhaseAのみ（Kickoff + SubQまで）を保存する想定
-                        # ※この関数は新設してください（既存の fullgen を途中で止めて revision に保存）
                         ok, msg = run_phaseA_generation_and_append_revision(
                             axis_text=selected_text,
                             axis_source=f"pivot:{selected_key}",
@@ -4937,23 +4935,25 @@ with center:
                         if revs_tmp:
                             latest = revs_tmp[-1]
                             latest_id = latest.get("rev_id")
-                            latest_label = latest.get("label")
 
                             # ★追加：作成した最新Revisionをアクティブにする
                             if latest_id:
                                 st.session_state["active_rev_id"] = latest_id
-
-                                # proposal_draft入口でapplyを再実行させる（確実に復元するため）
                                 st.session_state.pop("__proposal_draft_hydrated", None)
 
-                            # 右側比較も最新に寄せる（既存の挙動維持）
-                            if latest_label:
-                                st.session_state["compare_right_label"] = latest_label
+                                # ★右側：最新を強制
+                                st.session_state["__force_compare_right_rev_id"] = latest_id
+
+                                # ★追加：左側も「1つ前」に寄せる（比較として自然）
+                                # 2件以上ある場合のみ
+                                if len(revs_tmp) >= 2:
+                                    prev_id = revs_tmp[-2].get("rev_id")
+                                    if prev_id:
+                                        st.session_state["__force_compare_left_rev_id"] = prev_id
 
                         st.rerun()  # ★成功時だけ rerun
                     else:
                         st.error(msg)
-
                         # ★失敗時は rerun しない（エラーを残す）
 
             with col_b:
@@ -4966,43 +4966,7 @@ with center:
             if not revs:
                 st.info("新規作成（KON〜SQ）ボタンを押してください。")
             else:
-                # 比較UI 初期化フラグ（初回だけ）
-                if "compare_initialized" not in st.session_state:
-                    st.session_state["compare_initialized"] = False
-
-                rev_options = {r["label"]: r["rev_id"] for r in revs}
-                labels_list = list(rev_options.keys())
-
-                # 初期値探索
-                def _find_label_by_stage(stage: str) -> str | None:
-                    for r in revs:
-                        if r.get("stage") == stage:
-                            return r.get("label")
-                    return None
-
-                default_label = _find_label_by_stage("default")
-
-                # 直近の PhaseA を右側にする（無ければ最新）
-                latest_phaseA_label = None
-                for r in reversed(revs):
-                    if r.get("stage") in ["phaseA", "ko_sq", "kickoff_subq"]:
-                        latest_phaseA_label = r.get("label")
-                        break
-                if latest_phaseA_label is None and revs:
-                    latest_phaseA_label = revs[-1].get("label")
-
-                # 初回だけ左右を自動セット
-                if (not st.session_state.get("compare_initialized")) and labels_list:
-                    st.session_state["compare_left_label"] = (
-                        default_label if default_label in labels_list else labels_list[0]
-                    )
-                    st.session_state["compare_right_label"] = (
-                        latest_phaseA_label if latest_phaseA_label in labels_list else labels_list[-1]
-                    )
-                    st.session_state["compare_initialized"] = True
-
-                st.markdown("#### Revision比較（左右）")
-
+                # ---------- 表示専用関数（ここで定義してOK） ----------
                 def _render_kickoff_block(rev: dict | None, title: str, key_prefix: str):
                     """
                     比較表示専用：常にユニークkeyで表示し、値は毎回 session_state に上書きして
@@ -5060,48 +5024,102 @@ with center:
                         key=widget_key,
                     )
 
-                c1, c2 = st.columns(2, gap="large")
+                # ---------- rev_id 方式：選択値は rev_id に統一 ----------
+                rev_ids = [r["rev_id"] for r in revs if r.get("rev_id")]
+                id_to_label = {r["rev_id"]: r.get("label", "") for r in revs}
 
-                with c1:
-                    st.selectbox(
-                        "左に表示するRevision（比較A）",
-                        options=labels_list,
-                        key="compare_left_label",
-                    )
-                    left_label = st.session_state.get("compare_left_label")
-                    left_rev = find_revision(rev_options[left_label]) if left_label in rev_options else None
-                    left_subq = (left_rev or {}).get("subq_list", [])
+                if not rev_ids:
+                    st.error("Revisionの rev_id が取得できませんでした。append_revision の実装を確認してください。")
+                else:
+                    def _find_rev_id_by_stage(stage: str) -> str | None:
+                        for r in revs:
+                            if r.get("stage") == stage:
+                                return r.get("rev_id")
+                        return None
 
-                    if left_rev:
-                        _render_kickoff_block(left_rev, "左（比較A）", "cmp_left")
-                    else:
-                        st.info("左側に表示するRevisionを選択してください。")
+                    default_rev_id = _find_rev_id_by_stage("default")
 
-                with c2:
-                    st.selectbox(
-                        "右に表示するRevision（比較B）",
-                        options=labels_list,
-                        key="compare_right_label",
-                    )
-                    right_label = st.session_state.get("compare_right_label")
-                    right_rev = find_revision(rev_options[right_label]) if right_label in rev_options else None
-                    right_subq = (right_rev or {}).get("subq_list", [])
+                    latest_phaseA_rev_id = None
+                    for r in reversed(revs):
+                        if r.get("stage") in ["phaseA", "ko_sq", "kickoff_subq"]:
+                            latest_phaseA_rev_id = r.get("rev_id")
+                            break
+                    if latest_phaseA_rev_id is None:
+                        latest_phaseA_rev_id = rev_ids[-1]
 
-                    if right_rev:
-                        _render_kickoff_block(right_rev, "右（比較B）", "cmp_right")
-                    else:
-                        st.info("右側に表示するRevisionを選択してください。")
+                    # 初回だけ（rev_idで初期化）
+                    if "compare_left_rev_id" not in st.session_state:
+                        st.session_state["compare_left_rev_id"] = default_rev_id or rev_ids[0]
+                    if "compare_right_rev_id" not in st.session_state:
+                        st.session_state["compare_right_rev_id"] = latest_phaseA_rev_id or rev_ids[-1]
 
-                # --- 問いの分解（左右比較） ---
-                c1, c2 = st.columns(2, gap="large")
-                left_rev_id = left_rev.get("rev_id") if left_rev else "no_rev"
-                right_rev_id = right_rev.get("rev_id") if right_rev else "no_rev"
+                    # ★新規作成直後は左/右を強制（rev_id）
+                    force_left_id = st.session_state.pop("__force_compare_left_rev_id", None)
+                    if force_left_id and force_left_id in rev_ids:
+                        st.session_state["compare_left_rev_id"] = force_left_id
 
-                with c1:
-                    _render_subq_block(left_subq, "左（比較A）", "cmp_left", left_rev_id)
+                    force_right_id = st.session_state.pop("__force_compare_right_rev_id", None)
+                    if force_right_id and force_right_id in rev_ids:
+                        st.session_state["compare_right_rev_id"] = force_right_id
 
-                with c2:
-                    _render_subq_block(right_subq, "右（比較B）", "cmp_right", right_rev_id)
+                    st.markdown("#### Revision比較（左右）")
+
+                    c1, c2 = st.columns(2, gap="large")
+
+                    with c1:
+                        st.selectbox(
+                            "左に表示するRevision（比較A）",
+                            options=rev_ids,
+                            key="compare_left_rev_id",
+                            format_func=lambda rid: id_to_label.get(rid, rid),
+                        )
+                        left_rev = find_revision(st.session_state["compare_left_rev_id"])
+                        left_subq = (left_rev or {}).get("subq_list", [])
+
+                        if left_rev:
+                            _render_kickoff_block(left_rev, "左（比較A）", "cmp_left")
+                        else:
+                            st.info("左側に表示するRevisionを選択してください。")
+
+                    with c2:
+                        st.selectbox(
+                            "右に表示するRevision（比較B）",
+                            options=rev_ids,
+                            key="compare_right_rev_id",
+                            format_func=lambda rid: id_to_label.get(rid, rid),
+                        )
+                        right_rev = find_revision(st.session_state["compare_right_rev_id"])
+                        right_subq = (right_rev or {}).get("subq_list", [])
+
+                        if right_rev:
+                            _render_kickoff_block(right_rev, "右（比較B）", "cmp_right")
+                        else:
+                            st.info("右側に表示するRevisionを選択してください。")
+
+                    # （任意）デバッグ：状態確認したい場合だけ有効化
+                    # st.write(
+                    #     "LEFT:", st.session_state["compare_left_rev_id"],
+                    #     (left_rev or {}).get("label"),
+                    #     "kickoff keys:", list(((left_rev or {}).get("kickoff") or {}).keys())
+                    # )
+                    # st.write(
+                    #     "RIGHT:", st.session_state["compare_right_rev_id"],
+                    #     (right_rev or {}).get("label"),
+                    #     "kickoff keys:", list(((right_rev or {}).get("kickoff") or {}).keys())
+                    # )
+
+                    # --- 問いの分解（左右比較） ---
+                    c1, c2 = st.columns(2, gap="large")
+                    left_rev_id = left_rev.get("rev_id") if left_rev else "no_rev"
+                    right_rev_id = right_rev.get("rev_id") if right_rev else "no_rev"
+
+                    with c1:
+                        _render_subq_block(left_subq, "左（比較A）", "cmp_left", left_rev_id)
+
+                    with c2:
+                        _render_subq_block(right_subq, "右（比較B）", "cmp_right", right_rev_id)
+
+                # --- ここから下は既存の削除UIへ（あなたのコードをそのまま続けてOK） ---
 
                 # =========================================================
                 # Revision 削除 UI（生成・比較タブ）
@@ -5369,25 +5387,25 @@ with center:
             with colb2:
                 st.caption("生成・比較タブではKON〜SQまで。ここで選択したRevisionを詳細化します。")
 
-            if "__dbg_gen_len" in st.session_state:
-                st.warning(
-                    f"DEBUG: gen_len={st.session_state.get('__dbg_gen_len')} / "
-                    f"active_id={st.session_state.get('__dbg_active_id')} / "
-                    f"rev_id_after_save={st.session_state.get('__dbg_rev_id_after_save')} / "
-                    f"rev_len_after_save={st.session_state.get('__dbg_rev_len_after_save')}"
-                )
+            # if "__dbg_gen_len" in st.session_state:
+            #     st.warning(
+            #         f"DEBUG: gen_len={st.session_state.get('__dbg_gen_len')} / "
+            #         f"active_id={st.session_state.get('__dbg_active_id')} / "
+            #         f"rev_id_after_save={st.session_state.get('__dbg_rev_id_after_save')} / "
+            #         f"rev_len_after_save={st.session_state.get('__dbg_rev_len_after_save')}"
+            #     )
 
-            # ==== DEBUG 表示（分析アプローチ：表示側）====
-            if st.session_state.get("__dbg_timeline"):
-                st.warning(f"DEBUG timeline: {st.session_state['__dbg_timeline']}")
+            # # ==== DEBUG 表示（分析アプローチ：表示側）====
+            # if st.session_state.get("__dbg_timeline"):
+            #     st.warning(f"DEBUG timeline: {st.session_state['__dbg_timeline']}")
 
 
             analysis_blocks = st.session_state.get("analysis_blocks", []) or []
 
             dbg = st.session_state.get("__dbg_analysis_after_gen")
-            if dbg:
-                st.warning(f"DEBUG(after_gen): len={dbg['len_analysis_blocks']} / active={dbg['active_rev_id']}")
-                st.code("\n".join(dbg["analysis_keys"]), language="text")
+            # if dbg:
+            #     st.warning(f"DEBUG(after_gen): len={dbg['len_analysis_blocks']} / active={dbg['active_rev_id']}")
+            #     st.code("\n".join(dbg["analysis_keys"]), language="text")
 
 
 
@@ -5467,9 +5485,9 @@ with center:
                 st.caption("軸（課題ピボット）・KON・サブクエスチョンに整合する対象者条件を提案します。")
 
 
-            if st.session_state.get("__dbg_tc_timeline"):
-                st.warning(f"DEBUG tc timeline: {st.session_state['__dbg_tc_timeline']}")
-                st.warning(f"DEBUG tc rev_len_after_save: {st.session_state.get('__dbg_tc_rev_len_after_save')}")
+            # if st.session_state.get("__dbg_tc_timeline"):
+            #     st.warning(f"DEBUG tc timeline: {st.session_state['__dbg_tc_timeline']}")
+            #     st.warning(f"DEBUG tc rev_len_after_save: {st.session_state.get('__dbg_tc_rev_len_after_save')}")
 
 
             # ① editor を唯一のUIソースにする（value= は使わない）
@@ -5625,7 +5643,7 @@ with center:
                     if get_active_revision() is not None:
                         save_session_keys_to_active_revision()
 
-            # =========================================================
-            # 6. 調査仕様案（撤去）
-            # =========================================================
-            # 方針により不要：UI/生成/保存を削除
+    elif mode == "case_review":
+        render_case_review_screen() 
+
+        
