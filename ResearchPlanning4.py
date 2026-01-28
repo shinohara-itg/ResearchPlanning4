@@ -4215,6 +4215,48 @@ if st.session_state.get("pending_apply_rev_id"):
 #render_dbg_sidebar()
 
 
+# パワポフォーマット連携
+from azure.identity import DefaultAzureCredential
+from azure.storage.blob import BlobServiceClient
+import streamlit as st
+
+@st.cache_resource
+def get_blob_service_client():
+    return BlobServiceClient(
+        account_url=st.secrets["STORAGE_ACCOUNT_URL"],
+        credential=DefaultAzureCredential()
+    )
+
+def ensure_server_template_loaded():
+    # すでにロード済みなら何もしない
+    if st.session_state.get("template_loaded") and st.session_state.get("pptx_path"):
+        return
+
+    bsc = get_blob_service_client()
+    blob = bsc.get_blob_client(
+        container=st.secrets["TEMPLATE_CONTAINER"],
+        blob=st.secrets["TEMPLATE_BLOB_NAME"]
+    )
+
+    pptx_bytes = blob.download_blob().readall()
+
+    session_dir = get_session_dir()  # 既存関数
+    tpl_dir = session_dir / "pptx"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+
+    target = tpl_dir / st.secrets["TEMPLATE_BLOB_NAME"]
+    target.write_bytes(pptx_bytes)
+
+    st.session_state["pptx_path"] = str(target)
+    st.session_state["template_loaded"] = True
+
+
+
+
+
+
+
+
 # =========================
 # レイアウト構成（左ペイン＋中央ペインのみ）
 # =========================
@@ -4228,18 +4270,22 @@ if "selected_mode" not in st.session_state:
 # 左ペイン
 # =========================
 with left:
+
+    ensure_server_template_loaded()
+
+
     if st.button("オリエン内容の整理", use_container_width=True):
         switch_mode("オリエン内容の整理")
 
-    if st.button("業界/ブランド診断", use_container_width=True):
-        switch_mode("brand_diagnosis")
+    #if st.button("業界/ブランド診断", use_container_width=True):
+    #    switch_mode("brand_diagnosis")
 
     if st.button("企画書下書き", use_container_width=True):
         switch_mode("proposal_draft")
 
-    if st.button("過去事例レビュー", use_container_width=True):
-        st.session_state["selected_mode"] = "case_review"
-        st.rerun()    
+    #if st.button("過去事例レビュー", use_container_width=True):
+    #    st.session_state["selected_mode"] = "case_review"
+    #    st.rerun()    
 
     st.divider()
 
@@ -4299,11 +4345,12 @@ with left:
 
             st.success(f"{uploaded_pptx.name} を読み込みました（保存先: {target}）。")
 
-    df = render_case_db_uploader_sidebar()
-    sig = st.session_state.get("case_db_upload_sig")
-    if sig:
-        name, size = sig
-        st.caption(f"読み込み済み: {name}")
+    # 過去企画のアップロード（セッション専用ディレクトリに保存）
+    # df = render_case_db_uploader_sidebar()
+    # sig = st.session_state.get("case_db_upload_sig")
+    # if sig:
+    #     name, size = sig
+    #     st.caption(f"読み込み済み: {name}")
 
 
 # =========================
@@ -4688,7 +4735,6 @@ with center:
         # =========================================================
         with tab_pivot:
             st.markdown("### 課題のピボット")
-
             st.caption("依頼課題を、調査で検証可能な『採用課題（真の課題）』へ変換します。")
 
             # 入力参照（読み取り専用）
@@ -4716,9 +4762,6 @@ with center:
                 st.markdown("### マーケティングファネル")
                 st.code(funnel_text[:2000] if funnel_text else "（未生成）", language="text")
 
-
-
-
             col_btn, col_note = st.columns([1, 3], gap="small")
 
             with col_btn:
@@ -4728,7 +4771,6 @@ with center:
 
                     if ok:
                         st.success("①の前提整理ドラフトを生成しました。必要に応じて編集してください。")
-                        # 生成直後に画面へ反映したいので rerun
                         st.rerun()
                     else:
                         st.error(msg)
@@ -4736,49 +4778,68 @@ with center:
             with col_note:
                 st.caption("課題変換（前処理）は自動実行しません。必要なタイミングでボタン押下して生成してください。")
 
-            st.text_area(
-                "1) 事業やブランドが抱える課題",
-                key="reframe_c4_business_brand",
-                height=90,
-            )
-            st.text_area(
-                "2) マーケティングプロセス上、未解決のステップと思われること",
-                key="reframe_c3_process_gap",
-                height=90,
-            )
-            st.text_area(
-                "3) 報告先（組織長など）が知りたいこと",
-                key="reframe_c2_exec_summary",
-                height=90,
-            )
-            st.text_area(
-                "4) 依頼窓口部署のミッション",
-                key="reframe_c5_org_mission",
-                height=90,
-            )
-            st.text_area(
-                "5) 調査結果を受けて次にすること（ネクストアクション）",
-                key="reframe_c1_next_action",
-                height=90,
-            )
-
-            # ★追加：ユーザー任意追記（第6観点）
-            st.text_area(
-                "6) 任意の追記（補足・前提条件・懸念・別視点など）",
-                key="reframe_c6_user_notes",
-                height=140,
-                placeholder="例：意思決定会議が2月中旬にある／競合Aの新商品が影響／調査対象外の制約条件／現場の肌感など",
-            )
-
-            st.markdown("")
-
-            # =========================================================
-            # ★追加：生成・比較タブへ渡すための「確定（反映）」処理
-            # =========================================================
-
             st.divider()
 
-            # 現在入力されている6観点を収集
+            # =========================================================
+            # ★3レイヤー（WHY / WHAT / HOW）で入力欄を構造化
+            # =========================================================
+            st.markdown("### 5観点を3レイヤーで整理（WHY / WHAT / HOW）")
+            st.caption("上位→下位の順に埋めると、後続の『生成・比較』でブレにくくなります。")
+
+            # WHY（上位）
+            with st.container(border=True):
+                st.markdown("#### 🟦 WHY（上位）：事業視点 — 何が問題で、なぜ調査するのか")
+                st.text_area(
+                    "事業やブランドが抱える課題（根本課題）",
+                    key="reframe_c4_business_brand",
+                    height=110,
+                )
+
+            # WHAT（中位）
+            with st.container(border=True):
+                st.markdown("#### 🟨 WHAT（中位）：意思決定視点 — 調査で何を明らかにし、何を判断するのか")
+                st.text_area(
+                    "マーケティングプロセス上、未解決のステップと思われること（詰まり／ギャップ）",
+                    key="reframe_c3_process_gap",
+                    height=110,
+                )
+                st.text_area(
+                    "報告先（組織長など）が知りたいこと（意思決定論点）",
+                    key="reframe_c2_exec_summary",
+                    height=110,
+                )
+
+            # HOW（下位）
+            with st.container(border=True):
+                st.markdown("#### 🟩 HOW（下位）：実行視点 — 誰が何を担い、調査後にどう動くのか")
+                st.text_area(
+                    "依頼窓口部署のミッション（役割・責任範囲）",
+                    key="reframe_c5_org_mission",
+                    height=110,
+                )
+                st.text_area(
+                    "調査結果を受けて次にすること（ネクストアクション）",
+                    key="reframe_c1_next_action",
+                    height=110,
+                )
+
+            # 任意追記（補助レイヤー）
+            with st.container(border=True):
+                st.markdown("#### 🧩 補足：任意の追記（前提条件・懸念・制約・別視点など）")
+                st.text_area(
+                    "任意の追記（補足・前提条件・懸念・別視点など）",
+                    key="reframe_c6_user_notes",
+                    height=140,
+                    placeholder="例：意思決定会議が2月中旬にある／競合Aの新商品が影響／調査対象外の制約条件／現場の肌感など",
+                )
+
+            st.markdown("")
+            st.divider()
+
+            # =========================================================
+            # 「生成・比較」へ渡すための確定（反映）処理（既存のまま）
+            # =========================================================
+
             pivot_items = [
                 ("1) 調査結果を受けて次にすること（ネクストアクション）", st.session_state.get("reframe_c1_next_action", "")),
                 ("2) 報告先（組織長など）が知りたいこと", st.session_state.get("reframe_c2_exec_summary", "")),
@@ -4788,7 +4849,6 @@ with center:
                 ("6) 任意の追記（補足・前提条件・懸念・別視点など）", st.session_state.get("reframe_c6_user_notes", "")),
             ]
 
-            # 確定状態の表示
             committed = bool(st.session_state.get("pivot_axis_texts_committed", False))
             if committed:
                 st.success("課題ピボット（6観点）は『生成・比較』に反映済みです。内容を変更した場合は、再度『反映（確定）』してください。")
@@ -4797,18 +4857,8 @@ with center:
 
             col_commit, col_preview = st.columns([1, 2], gap="small")
 
-            # with col_preview:
-            #     with st.expander("生成・比較へ渡す内容のプレビュー", expanded=False):
-            #         for title, text in pivot_items:
-            #             st.markdown(f"#### {title}")
-            #             st.code(text.strip() if text.strip() else "（空）", language="text")
-
             with col_commit:
                 if st.button("生成・比較へ反映（確定）", use_container_width=True, key="btn_commit_pivot_axis"):
-
-                    # -------------------------------------------------
-                    # ★課題ピボット確定：生成・比較タブ用に保存
-                    # -------------------------------------------------
                     pivot_map = {
                         "c4_business_brand": (st.session_state.get("reframe_c4_business_brand", "") or "").strip(),
                         "c3_process_gap": (st.session_state.get("reframe_c3_process_gap", "") or "").strip(),
@@ -4827,7 +4877,6 @@ with center:
                         "c6_user_notes": "任意の追記（補足・前提条件・懸念・別視点など）",
                     }
 
-                    # ★順序を固定（＝あなたの指定順）
                     ordered_keys = [
                         "c4_business_brand",
                         "c3_process_gap",
@@ -4841,18 +4890,16 @@ with center:
 
                     non_empty_count = sum(1 for _, t in pivot_items if (t or "").strip())
                     if non_empty_count == 0:
-                        st.error("5観点がすべて空です。少なくとも1つ以上入力してから反映してください。")
+                        st.error("6観点がすべて空です。少なくとも1つ以上入力してから反映してください。")
                     else:
                         st.session_state["pivot_axis_text_map"] = pivot_map
                         st.session_state["pivot_axis_labels"] = pivot_labels
                         st.session_state["pivot_axis_texts_committed"] = True
 
-                        # 生成・比較が使いやすい形（title/text配列）
                         st.session_state["pivot_axis_texts"] = [
                             {"title": title, "text": (text or "").strip()} for title, text in pivot_items
                         ]
 
-                        # 連結済みの“軸テキスト”（必要なら残す）
                         compiled = "\n\n".join(
                             [f"### {item['title']}\n{item['text']}" for item in st.session_state["pivot_axis_texts"] if item["text"]]
                         )
@@ -4860,8 +4907,6 @@ with center:
 
                         st.success("『生成・比較』に反映しました。")
                         st.rerun()
-
-
 
 
         # =========================================================
@@ -5645,5 +5690,3 @@ with center:
 
     elif mode == "case_review":
         render_case_review_screen() 
-
-        

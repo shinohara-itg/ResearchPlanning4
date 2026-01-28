@@ -10,3 +10,5 @@ pytz
 python-docx
 openpyxl
 numpy
+azure-identity
+azure-storage-blob
