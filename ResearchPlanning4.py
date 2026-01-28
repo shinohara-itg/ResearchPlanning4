@@ -4216,41 +4216,62 @@ if st.session_state.get("pending_apply_rev_id"):
 
 
 # パワポフォーマット連携
+import os
+from pathlib import Path
+
+import streamlit as st
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-import streamlit as st
+
+
+def get_setting(key: str) -> str:
+    # 1) App Service のアプリ設定（環境変数）を最優先
+    v = os.getenv(key)
+    if v:
+        return v
+
+    # 2) ローカル実行用：secrets.toml がある場合だけ使う
+    try:
+        return st.secrets[key]
+    except Exception:
+        raise RuntimeError(
+            f"Missing setting: {key}. "
+            f"Set it as an App Service app setting (recommended) or in .streamlit/secrets.toml."
+        )
+
 
 @st.cache_resource
 def get_blob_service_client():
+    account_url = get_setting("STORAGE_ACCOUNT_URL")
     return BlobServiceClient(
-        account_url=st.secrets["STORAGE_ACCOUNT_URL"],
-        credential=DefaultAzureCredential()
+        account_url=account_url,
+        credential=DefaultAzureCredential(),
     )
+
 
 def ensure_server_template_loaded():
     # すでにロード済みなら何もしない
     if st.session_state.get("template_loaded") and st.session_state.get("pptx_path"):
         return
 
+    container = get_setting("TEMPLATE_CONTAINER")
+    blob_name = get_setting("TEMPLATE_BLOB_NAME")
+
     bsc = get_blob_service_client()
-    blob = bsc.get_blob_client(
-        container=st.secrets["TEMPLATE_CONTAINER"],
-        blob=st.secrets["TEMPLATE_BLOB_NAME"]
-    )
+    blob = bsc.get_blob_client(container=container, blob=blob_name)
 
     pptx_bytes = blob.download_blob().readall()
 
-    session_dir = get_session_dir()  # 既存関数
+    session_dir = get_session_dir()  # 既存関数（Pathを返す前提）
     tpl_dir = session_dir / "pptx"
     tpl_dir.mkdir(parents=True, exist_ok=True)
 
-    target = tpl_dir / st.secrets["TEMPLATE_BLOB_NAME"]
+    # 保存ファイル名は固定にするのが安全（日本語blob名でも事故らない）
+    target = tpl_dir / "template.pptx"
     target.write_bytes(pptx_bytes)
 
     st.session_state["pptx_path"] = str(target)
     st.session_state["template_loaded"] = True
-
-
 
 
 
