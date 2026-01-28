@@ -4330,41 +4330,41 @@ with left:
             except Exception as e:
                 st.error(f"プロジェクト読み込み中にエラーが発生しました: {e}")
    
-    # PPTテンプレートアップロード（セッション専用ディレクトリに保存）
-    uploaded_pptx = st.file_uploader(
-        "企画書テンプレートをアップロードしてください（PPTX）",
-        type=["pptx"],
-        key="pptx_upload",
-    )
+    # # PPTテンプレートアップロード（セッション専用ディレクトリに保存）
+    # uploaded_pptx = st.file_uploader(
+    #     "企画書テンプレートをアップロードしてください（PPTX）",
+    #     type=["pptx"],
+    #     key="pptx_upload",
+    # )
 
-    # アップロードの変化検知（同名でも内容/サイズが変われば再保存）
-    if "pptx_upload_sig" not in st.session_state:
-        st.session_state["pptx_upload_sig"] = None
+    # # アップロードの変化検知（同名でも内容/サイズが変われば再保存）
+    # if "pptx_upload_sig" not in st.session_state:
+    #     st.session_state["pptx_upload_sig"] = None
 
-    if uploaded_pptx is not None:
-        sig = (uploaded_pptx.name, getattr(uploaded_pptx, "size", None))
+    # if uploaded_pptx is not None:
+    #     sig = (uploaded_pptx.name, getattr(uploaded_pptx, "size", None))
 
-        # 初回 or 差し替え時のみ保存し直す
-        if st.session_state["pptx_upload_sig"] != sig:
-            st.session_state["pptx_upload_sig"] = sig
+    #     # 初回 or 差し替え時のみ保存し直す
+    #     if st.session_state["pptx_upload_sig"] != sig:
+    #         st.session_state["pptx_upload_sig"] = sig
 
-            session_dir = get_session_dir()
-            tpl_dir = session_dir / "pptx"
-            tpl_dir.mkdir(parents=True, exist_ok=True)
+    #         session_dir = get_session_dir()
+    #         tpl_dir = session_dir / "pptx"
+    #         tpl_dir.mkdir(parents=True, exist_ok=True)
 
-            target = tpl_dir / uploaded_pptx.name
-            with open(target, "wb") as f:
-                f.write(uploaded_pptx.getbuffer())
+    #         target = tpl_dir / uploaded_pptx.name
+    #         with open(target, "wb") as f:
+    #             f.write(uploaded_pptx.getbuffer())
 
-            st.session_state["pptx_path"] = str(target)
-            st.session_state["template_loaded"] = True
+    #         st.session_state["pptx_path"] = str(target)
+    #         st.session_state["template_loaded"] = True
 
-            # 既に反映済みPPTがある場合はクリア（取り違え防止）
-            st.session_state.pop("final_pptx_bytes", None)
-            st.session_state.pop("final_pptx_name", None)
-            st.session_state.pop("final_pptx_key", None)
+    #         # 既に反映済みPPTがある場合はクリア（取り違え防止）
+    #         st.session_state.pop("final_pptx_bytes", None)
+    #         st.session_state.pop("final_pptx_name", None)
+    #         st.session_state.pop("final_pptx_key", None)
 
-            st.success(f"{uploaded_pptx.name} を読み込みました（保存先: {target}）。")
+    #         st.success(f"{uploaded_pptx.name} を読み込みました（保存先: {target}）。")
 
     # 過去企画のアップロード（セッション専用ディレクトリに保存）
     # df = render_case_db_uploader_sidebar()
