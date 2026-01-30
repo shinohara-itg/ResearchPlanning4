@@ -107,6 +107,107 @@ if "dbg_enabled" not in st.session_state:
 
 
 
+from pathlib import Path
+import streamlit as st
+
+
+#案内画像用
+CHAR_IMG_PATH = Path(__file__).parent / "assets" / "character.png"
+CHAR_IMG_PATH2 = Path(__file__).parent / "assets" / "character2.png"
+CHAR_IMG_PATH3 = Path(__file__).parent / "assets" / "character3.png"
+CHAR_IMG_PATH4 = Path(__file__).parent / "assets" / "character4.png"
+
+def render_character_guide(title: str, body_md: str, *, img_width: int = 300, kind: str = "info"):
+    """
+    kind: "info" | "warning" | "success" | "error"
+    """
+    col1, col2 = st.columns([1,3], gap="medium")
+    with col1:
+        if CHAR_IMG_PATH.exists():
+            st.image(str(CHAR_IMG_PATH), width=img_width)
+        else:
+            st.caption("（character.png が見つかりません）")
+
+    with col2:
+        st.markdown(f"### {title}")
+        if kind == "warning":
+            st.warning(body_md)
+        elif kind == "success":
+            st.success(body_md)
+        elif kind == "error":
+            st.error(body_md)
+        else:
+            st.info(body_md)
+
+
+def render_character_guide2(title: str, body_md: str, *, img_width: int = 300, kind: str = "info"):
+    """
+    kind: "info" | "warning" | "success" | "error"
+    """
+    col1, col2 = st.columns([1,5], gap="medium")
+    with col1:
+        if CHAR_IMG_PATH.exists():
+            st.image(str(CHAR_IMG_PATH2), width=img_width)
+        else:
+            st.caption("（character.png が見つかりません）")
+
+    with col2:
+        st.markdown(f"### {title}")
+        if kind == "warning":
+            st.warning(body_md)
+        elif kind == "success":
+            st.success(body_md)
+        elif kind == "error":
+            st.error(body_md)
+        else:
+            st.info(body_md)
+
+
+def render_character_guide3(title: str, body_md: str, *, img_width: int = 300, kind: str = "info"):
+    """
+    kind: "info" | "warning" | "success" | "error"
+    """
+    col1, col2 = st.columns([1,5], gap="medium")
+    with col1:
+        if CHAR_IMG_PATH.exists():
+            st.image(str(CHAR_IMG_PATH3), width=img_width)
+        else:
+            st.caption("（character.png が見つかりません）")
+
+    with col2:
+        st.markdown(f"### {title}")
+        if kind == "warning":
+            st.warning(body_md)
+        elif kind == "success":
+            st.success(body_md)
+        elif kind == "error":
+            st.error(body_md)
+        else:
+            st.info(body_md)
+
+
+
+def render_character_guide4(title: str, body_md: str, *, img_width: int = 300, kind: str = "info"):
+    """
+    kind: "info" | "warning" | "success" | "error"
+    """
+    col1, col2 = st.columns([1,5], gap="medium")
+    with col1:
+        if CHAR_IMG_PATH.exists():
+            st.image(str(CHAR_IMG_PATH4), width=img_width)
+        else:
+            st.caption("（character.png が見つかりません）")
+
+    with col2:
+        st.markdown(f"### {title}")
+        if kind == "warning":
+            st.warning(body_md)
+        elif kind == "success":
+            st.success(body_md)
+        elif kind == "error":
+            st.error(body_md)
+        else:
+            st.info(body_md)
 
 
 # =========================
@@ -3752,11 +3853,17 @@ def delete_revision(rev_id: str) -> tuple[bool, str]:
     return True, ""
 
 
+MODE_HINTS = {
+    "オリエン内容の整理": "資料（PDF/PPTX/TXT/DOCX/XLSX/ZIP）をアップロードしてください。自動整理が走ったら、右側の手入力欄で必要な追記・修正をします。",
+    "proposal_draft": "まずは「課題ピボット」→「生成・比較」→「編集・PPT反映」の順で進めると迷いません。",
+}
+
 def switch_mode(next_mode: str):
     if st.session_state.get("selected_mode") == "proposal_draft":
         st.session_state.pop("__proposal_draft_hydrated", None)
 
     st.session_state["selected_mode"] = next_mode
+    #st.session_state["__ui_mode_hint"] = MODE_HINTS.get(next_mode, "")
     if next_mode == "problem_reframe":
         hydrate_reframe_ui_from_data_if_empty()
     st.rerun()
@@ -4292,7 +4399,7 @@ if "selected_mode" not in st.session_state:
 # =========================
 with left:
 
-    ensure_server_template_loaded()
+    #ensure_server_template_loaded()
 
 
     if st.button("オリエン内容の整理", use_container_width=True):
@@ -4377,8 +4484,33 @@ with left:
 # =========================
 # 中央ペイン
 # =========================
+# ★モード切替時のガイド（1回だけ表示）
+hint = st.session_state.pop("__ui_mode_hint", None)
+# if hint:
+#     render_character_guide("次にやること", hint, img_width=120, kind="info")
+
+
 with center:
     mode = st.session_state.get("selected_mode")
+
+    # ★初回アクセス時だけガイド表示（初動の心理的壁を下げる）
+    if "__ui_first_visit" not in st.session_state:
+        render_character_guide(
+            "ようこそ！",
+            "現在このツールでは企画書作成をサポートしているよ。作成できる企画書のスライドは以下です。\n"
+            "- キックオフノート（KON）\n"
+            "- サブクエスチョン（SQ）\n"
+            "- 分析アプローチ\n"
+            "- 調査対象者案\n"
+            "- 調査項目案\n\n\n"
+            "次の手順で進めていこう！\n"
+            "1) 左の「オリエン内容の整理」で資料をアップロード\n"
+            "2) 内容を確認したら「企画書下書き」へ進んでください。\n"
+            "3) 企画を一時保存してある場合は「保存済みファイル読み込み」から再開できます。\n",
+            img_width=300,
+            kind="info",
+        )
+        st.session_state["__ui_first_visit"] = True
 
 
     #WATCH_PREFIXES = ("pivot_", "reframe_", "proposal_", "kickoff_", "analysis_", "ai_", "survey_", "problem_", "orien_")
@@ -4444,6 +4576,15 @@ with center:
     if mode == "オリエン内容の整理":
         st.markdown("## オリエン内容の整理")
 
+
+        render_character_guide2(
+            "ここではクライアントと話した内容を整理しよう",
+            "- 下から オリエンのファイルを読み込んでください。自動で内容を整理してくれるよ。\n"
+            "- 保存は不要です。\n"
+            "- 完了したら 「企画書下書き」 に進んでください。",
+            img_width=500,
+            kind="info",
+        )
         # st.caption(
         #     f"DEBUG orien_ai_draft len={len(st.session_state.get('data_orien_outline_ai_draft',''))} / "
         #     f"manual len={len(st.session_state.get('data_orien_outline_manual',''))} / "
@@ -4478,7 +4619,7 @@ with center:
             st.session_state["ui_orien_outline_ai_draft"] = st.session_state.get("data_orien_outline_ai_draft", "")
 
             st.text_area(
-                "整理結果（AI：所定フォーム）",
+                "整理結果（所定フォーム）",
                 key="ui_orien_outline_ai_draft",
                 height=800,
                 on_change=sync_orien_from_ui,
@@ -4749,14 +4890,27 @@ with center:
         # =========================================================
         # 2タブに分割
         # =========================================================
-        tab_pivot, tab_gen, tab_edit = st.tabs(["課題ピボット", "生成・比較", "編集・PPT反映"])
+        tab_pivot, tab_gen, tab_edit = st.tabs(["課題ピボット", "KON～SQ", "分析イメージ"])
 
         # =========================================================
         # TAB 1: 課題ピボット
         # =========================================================
         with tab_pivot:
-            st.markdown("### 課題のピボット")
-            st.caption("依頼課題を、調査で検証可能な『採用課題（真の課題）』へ変換します。")
+
+            render_character_guide3(
+                "課題のピボット",
+                "- クライアントが言ったことを一度立ち止まって考えるステップだよ。\n"
+                "- クライアントはなぜその課題をみんなに投げかけてきたのかな？\n"
+                "- 「新規作成」ボタンを押して下さい。オリエン内容をもとに課題の背景を考察するよ。\n"
+                "- ここでは眺めるだけでOK。もし自分なりの考えがあれば「クライアント課題（手書き）」に直接記入してください。\n"
+                "- 確認が済んだらページ下にある 「確認完了」 を押してください。\n"
+                "- 次は「KON～SQ」タブに進みます。",
+                img_width=500,
+                kind="info",
+            )
+
+            #st.markdown("### 課題のピボット")
+            
 
             # 入力参照（読み取り専用）
             orien_outline_text = st.session_state.get("orien_outline_text", "")
@@ -4764,7 +4918,7 @@ with center:
             beh_df = st.session_state.get("df_behavior_traits")
             funnel_text = st.session_state.get("funnel_text", "")
 
-            with st.expander("参照している前提（オリエン整理／ブランド診断）", expanded=False):
+            with st.expander("参照している前提", expanded=False):
                 st.markdown("### オリエン内容の整理（抜粋）")
                 st.code(orien_outline_text[:2000] if orien_outline_text else "（未生成）", language="text")
 
@@ -4804,12 +4958,12 @@ with center:
             # =========================================================
             # ★3レイヤー（WHY / WHAT / HOW）で入力欄を構造化
             # =========================================================
-            st.markdown("### 5観点を3レイヤーで整理（WHY / WHAT / HOW）")
-            st.caption("上位→下位の順に埋めると、後続の『生成・比較』でブレにくくなります。")
+            st.markdown("### 観点を3レイヤーで整理（WHY / WHAT / HOW）")
+            #st.caption("上位→下位の順に埋めると、後続の『生成・比較』でブレにくくなります。")
 
             # WHY（上位）
             with st.container(border=True):
-                st.markdown("#### 🟦 WHY（上位）：事業視点 — 何が問題で、なぜ調査するのか")
+                st.markdown("#### WHY（上位）：事業視点 — 何が問題で、なぜ調査するのか")
                 st.text_area(
                     "事業やブランドが抱える課題（根本課題）",
                     key="reframe_c4_business_brand",
@@ -4818,7 +4972,7 @@ with center:
 
             # WHAT（中位）
             with st.container(border=True):
-                st.markdown("#### 🟨 WHAT（中位）：意思決定視点 — 調査で何を明らかにし、何を判断するのか")
+                st.markdown("#### WHAT（中位）：意思決定視点 — 調査で何を明らかにし、何を判断するのか")
                 st.text_area(
                     "マーケティングプロセス上、未解決のステップと思われること（詰まり／ギャップ）",
                     key="reframe_c3_process_gap",
@@ -4832,7 +4986,7 @@ with center:
 
             # HOW（下位）
             with st.container(border=True):
-                st.markdown("#### 🟩 HOW（下位）：実行視点 — 誰が何を担い、調査後にどう動くのか")
+                st.markdown("#### HOW（下位）：実行視点 — 誰が何を担い、調査後にどう動くのか")
                 st.text_area(
                     "依頼窓口部署のミッション（役割・責任範囲）",
                     key="reframe_c5_org_mission",
@@ -4846,12 +5000,12 @@ with center:
 
             # 任意追記（補助レイヤー）
             with st.container(border=True):
-                st.markdown("#### 🧩 補足：任意の追記（前提条件・懸念・制約・別視点など）")
+                st.markdown("#### クライアント課題（手書き）")
                 st.text_area(
-                    "任意の追記（補足・前提条件・懸念・別視点など）",
+                    "任意の記載",
                     key="reframe_c6_user_notes",
                     height=140,
-                    placeholder="例：意思決定会議が2月中旬にある／競合Aの新商品が影響／調査対象外の制約条件／現場の肌感など",
+                    #placeholder="例：意思決定会議が2月中旬にある／競合Aの新商品が影響／調査対象外の制約条件／現場の肌感など",
                 )
 
             st.markdown("")
@@ -4879,7 +5033,7 @@ with center:
             col_commit, col_preview = st.columns([1, 2], gap="small")
 
             with col_commit:
-                if st.button("生成・比較へ反映（確定）", use_container_width=True, key="btn_commit_pivot_axis"):
+                if st.button("確認完了", use_container_width=True, key="btn_commit_pivot_axis"):
                     pivot_map = {
                         "c4_business_brand": (st.session_state.get("reframe_c4_business_brand", "") or "").strip(),
                         "c3_process_gap": (st.session_state.get("reframe_c3_process_gap", "") or "").strip(),
@@ -4934,6 +5088,18 @@ with center:
         # TAB 2: 課題マトリクス選択 + PhaseA生成（KON〜SQ） + 左右比較
         # =========================================================
         with tab_gen:
+
+            render_character_guide3(
+                "KON〜SQ",
+                "- キックオフノートからサブクエスチョンまでを生成して考察・比較するステップだよ。\n"
+                "- ポイントは顧客課題を決めつけないこと。\n"
+                "- はじめに中心となる課題を選んで「新規作成」を押してください。\n"
+                "- 中心となる課題を変えて「新規作成」を押すと、別なKON～SQが生成されるよ。\n"
+                "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。",
+                img_width=500,
+                kind="info",
+            )
+
             st.markdown("### KON～サブクエスチョン")
 
             # =========================================================
@@ -4962,7 +5128,7 @@ with center:
                     return pivot_labels.get(k, k)
 
                 st.selectbox(
-                    "生成の軸（課題ピボットの観点を選択）",
+                    "中心となる課題（課題ピボットの観点を選択）",
                     options=axis_keys,
                     key="pivot_axis_selected_key",
                     format_func=_fmt_axis,
@@ -5128,13 +5294,13 @@ with center:
                     if force_right_id and force_right_id in rev_ids:
                         st.session_state["compare_right_rev_id"] = force_right_id
 
-                    st.markdown("#### Revision比較（左右）")
+                    st.markdown("#### KON～SQ比較（左右）")
 
                     c1, c2 = st.columns(2, gap="large")
 
                     with c1:
                         st.selectbox(
-                            "左に表示するRevision（比較A）",
+                            "左に表示するKON～SQ（比較A）",
                             options=rev_ids,
                             key="compare_left_rev_id",
                             format_func=lambda rid: id_to_label.get(rid, rid),
@@ -5149,7 +5315,7 @@ with center:
 
                     with c2:
                         st.selectbox(
-                            "右に表示するRevision（比較B）",
+                            "右に表示するKON～SQ（比較B）",
                             options=rev_ids,
                             key="compare_right_rev_id",
                             format_func=lambda rid: id_to_label.get(rid, rid),
@@ -5234,6 +5400,17 @@ with center:
         # TAB 3: アクティブRevision選択 + 企画内容レビュー（編集UI / PhaseB詳細化）
         # =========================================================
         with tab_edit:
+
+            render_character_guide3(
+                "分析イメージ～対象者条件～調査項目の検討",
+                "- ここはさっき作った“KON～SQ”を元に「分析イメージ」、「対象者条件」、「調査項目」を検討するステップだよ。\n"
+                "- まず検討を進めたい「KON～SQ」を選んでください。\n"
+                "- その後は「新規作成」を押しながらそれぞれのそれぞれの工程の内容を確認してね。\n"
+                "- ページの最下部に「PPTに保存」、「一時保存」のボタンがあるからそこから保存してね。\n",
+                img_width=500,
+                kind="info",
+            )
+
             st.markdown("### 編集・PPT反映")
 
             # --- tab_edit 冒頭：revs取得 ---
@@ -5282,37 +5459,6 @@ with center:
                     set_active_revision(selected_rev_id)
                     st.rerun()
 
-            # =========================================================
-            # PPT反映＆一時保存（中央ペイン）
-            # =========================================================
-            col_left, col_right = st.columns([1, 1], gap="small")
-
-            with col_left:
-                if st.button("PPTに保存", use_container_width=True, key="btn_apply_ppt_center"):
-                    try:
-                        out_path, report = run_step4_apply_current_ui_to_ppt(st.session_state)
-                        st.success(f"一括反映が完了しました：{out_path.name}（反映 {report['applied']}件）")
-                    except Exception as e:
-                        st.error(f"一括反映でエラーが発生しました: {e}")
-
-            with col_right:
-                proj = build_project_from_session()
-                proj_json_str = json.dumps(proj, ensure_ascii=False, indent=2)
-
-                st.download_button(
-                    "一時保存",
-                    data=proj_json_str.encode("utf-8"),
-                    file_name=(st.session_state.get("project_name") or "project") + ".json",
-                    mime="application/json",
-                    use_container_width=True,
-                    key="btn_download_project_center",
-                )
-
-            col_dl, _sp2 = st.columns([1, 1], gap="small")
-            with col_dl:
-                render_ppt_download_button()
-
-            st.markdown("---")
 
             # =========================================================
             # PhaseA（KON〜SQ）が同期されているかの確認（proposal_draft_generated に依存しない）
@@ -5419,11 +5565,11 @@ with center:
             # =========================================================
             # 3. 分析アプローチ（PhaseBで生成）
             # =========================================================
-            st.markdown("### 3. 分析アプローチ（サブQ別 5項目セット）")
+            st.markdown("### 3. 分析アプローチ")
 
             colb1, colb2 = st.columns([1, 3], gap="small")
             with colb1:
-                if st.button("分析アプローチをAIで生成（PhaseB）", use_container_width=True, key="btn_gen_analysis_phaseB"):
+                if st.button("新規作成", use_container_width=True, key="btn_gen_analysis_phaseB"):
                     with st.spinner("分析アプローチを生成しています..."):
                         ok, msg = generate_analysis_approach_draft()  # ★あなたの関数
 
@@ -5503,7 +5649,7 @@ with center:
 
             coltc1, coltc2 = st.columns([1, 3], gap="small")
             with coltc1:
-                if st.button("対象者条件をAIで生成（PhaseB）", use_container_width=True, key="btn_gen_target_condition_phaseB"):
+                if st.button("新規作成", use_container_width=True, key="btn_gen_target_condition_phaseB"):
                     with st.spinner("対象者条件案を生成しています..."):
                         ok, msg = generate_target_condition_draft()
                     if ok:
@@ -5580,7 +5726,7 @@ with center:
             # =========================================================
             # 5. 調査項目案（分析アプローチ連動 / 10/20/30/40は作らない）
             # =========================================================
-            st.markdown("### 5. 調査項目案（分析アプローチ連動）")
+            st.markdown("### 5. 調査項目案")
 
             analysis_blocks_norm = normalize_analysis_blocks(st.session_state.get("analysis_blocks", []) or [])
             if not analysis_blocks_norm:
@@ -5588,7 +5734,7 @@ with center:
             else:
                 colx1, colx2 = st.columns([1, 3], gap="small")
                 with colx1:
-                    if st.button("調査項目をAIで生成（連動）", use_container_width=True, key="btn_gen_linked_items"):
+                    if st.button("新規作成", use_container_width=True, key="btn_gen_linked_items"):
                         with st.spinner("分析アプローチに紐づく調査項目を生成しています..."):
                             ok, msg = generate_survey_items_linked_draft()
                         if ok:
@@ -5708,6 +5854,41 @@ with center:
 
                     if get_active_revision() is not None:
                         save_session_keys_to_active_revision()
+
+
+            # =========================================================
+            # PPT反映＆一時保存（中央ペイン）
+            # =========================================================
+            col_left, col_right = st.columns([1, 1], gap="small")
+
+            with col_left:
+                if st.button("PPTに保存", use_container_width=True, key="btn_apply_ppt_center"):
+                    try:
+                        out_path, report = run_step4_apply_current_ui_to_ppt(st.session_state)
+                        st.success(f"一括反映が完了しました：{out_path.name}（反映 {report['applied']}件）")
+                    except Exception as e:
+                        st.error(f"一括反映でエラーが発生しました: {e}")
+
+
+            with col_right:
+                proj = build_project_from_session()
+                proj_json_str = json.dumps(proj, ensure_ascii=False, indent=2)
+
+                st.download_button(
+                    "一時保存",
+                    data=proj_json_str.encode("utf-8"),
+                    file_name=(st.session_state.get("project_name") or "project") + ".json",
+                    mime="application/json",
+                    use_container_width=True,
+                    key="btn_download_project_center",
+                )
+
+            col_dl, _sp2 = st.columns([1, 1], gap="small")
+            with col_dl:
+                render_ppt_download_button()
+
+            st.markdown("---")
+
 
     elif mode == "case_review":
         render_case_review_screen() 
