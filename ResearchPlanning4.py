@@ -4580,6 +4580,39 @@ def _make_output_zip_bytes(session_state) -> tuple[bytes, str]:
     return zbuf.getvalue(), zip_name
 
 
+import os
+from azure.storage.blob import BlobServiceClient
+
+def ensure_pptx_path() -> bool:
+    """
+    st.session_state['pptx_path'] が無ければ Blob から /tmp/template.pptx にDLしてセット。
+    """
+    if st.session_state.get("pptx_path"):
+        return True
+
+    conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
+    container = os.getenv("PPTX_TEMPLATE_CONTAINER", "")
+    blob_name = os.getenv("PPTX_TEMPLATE_BLOB_NAME", "")  # 例: templates/template.pptx
+
+    if not conn_str or not container or not blob_name:
+        return False
+
+    try:
+        bsc = BlobServiceClient.from_connection_string(conn_str)
+        bc = bsc.get_blob_client(container=container, blob=blob_name)
+        data = bc.download_blob().readall()
+
+        local_path = "/tmp/template.pptx"
+        with open(local_path, "wb") as f:
+            f.write(data)
+
+        st.session_state["pptx_path"] = local_path
+        return True
+
+    except Exception:
+        return False
+
+
 # =========================================================
 # pending apply（ウィジェット生成前にrev内容をsessionへ適用）
 # =========================================================
@@ -5025,6 +5058,9 @@ with center:
 
         ensure_revision_store()
 
+        # tabsより前（proposal_draft の中）
+        if not ensure_pptx_path():
+            st.warning("PPTテンプレート（Blob）の取得に失敗しました。環境変数設定を確認してください。")
 
         # =========================================================
         # active_rev_id が変わったら、必ずそのrevを session_state に適用する
@@ -6421,13 +6457,18 @@ with center:
             st.markdown("### 保存（PPT + 調査項目Excel + JSON をZIPで出力）")
 
             if st.button("保存（ZIP出力を作成）", use_container_width=True, key="btn_build_zip"):
-                try:
-                    zip_bytes, zip_name = _make_output_zip_bytes(st.session_state)
-                    st.session_state["final_zip_bytes"] = zip_bytes
-                    st.session_state["final_zip_name"] = zip_name
-                    st.success("ZIPを作成しました。下のボタンからダウンロードできます。")
-                except Exception as e:
-                    st.error(f"保存用ZIPの作成に失敗しました: {e}")
+
+                # ★ここを追加：テンプレパスが無ければ先に落とす or エラーにする
+                if not st.session_state.get("pptx_path"):
+                    st.error("pptx_path が未設定です。PPTテンプレートを先にセットしてください（BlobからDLする処理が必要です）。")
+                else:
+                    try:
+                        zip_bytes, zip_name = _make_output_zip_bytes(st.session_state)
+                        st.session_state["final_zip_bytes"] = zip_bytes
+                        st.session_state["final_zip_name"] = zip_name
+                        st.success("ZIPを作成しました。下のボタンからダウンロードできます。")
+                    except Exception as e:
+                        st.error(f"保存用ZIPの作成に失敗しました: {e}")
 
             if st.session_state.get("final_zip_bytes"):
                 st.download_button(
@@ -6438,7 +6479,6 @@ with center:
                     use_container_width=True,
                     key="btn_download_zip",
                 )
-
 
 
     elif mode == "case_review":
