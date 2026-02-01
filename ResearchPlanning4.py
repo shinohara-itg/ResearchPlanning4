@@ -258,9 +258,7 @@ def init_session_state():
     REFRAME_FIELDS = [
         "c1_next_action",
         "c2_exec_summary",
-        "c3_process_gap",
         "c4_business_brand",
-        "c5_org_mission",
         "c6_user_notes",
     ]
 
@@ -278,9 +276,7 @@ def init_session_state():
 REFRAME_FIELDS = [
     "c1_next_action",
     "c2_exec_summary",
-    "c3_process_gap",
     "c4_business_brand",
-    "c5_org_mission",
     "c6_user_notes",
 ]
 
@@ -1031,29 +1027,19 @@ def generate_problem_reframe_premise():
 {{
   "c1_next_action": "...",
   "c2_exec_summary": "...",
-  "c3_process_gap": "...",
-  "c4_business_brand": "...",
-  "c5_org_mission": "..."
+  "c4_business_brand": "..."
 }}
 
 【制約】
-- c1_next_action には、「調査を依頼したクライアントが調査結果を受けて何を実行するか」を記述すること
+- c1_next_action には、「調査を依頼したクライアント担当者が調査結果を受けて何を実行するか」を記述すること
 - c2_exec_summary には、報告先（事業責任者・部門長・経営層）が
   「この調査結果を見て何を判断したいのか」「どの選択肢で迷っているのか」が
   明確に分かる形で記述すること。
   単なる事実確認や現状把握ではなく、意思決定に直結する論点に限定すること。
-- c3_process_gap には、一般的なマーケティングプロセス
-  （認知→理解→検討→購入→継続・推奨 など）を前提に、
-  現在どのステップが未解決・ブラックボックス・仮説不足なのかを特定して記述すること。
-  「情報が足りない」ではなく、「どの判断ができない状態なのか」を明示すること。
 - c4_business_brand には、短期的な施策課題ではなく、
   売上・シェア・ブランド価値・顧客構造など、
   事業またはブランドの中長期的な健全性に関わる論点として記述すること。
   個別施策の良し悪しではなく、構造的な問題として表現すること。
-- c5_org_mission には、依頼窓口部署の公式・非公式なミッションを踏まえ、
-  今回の調査でその組織が「果たすべき役割」や「説明責任」を明確に記述すること。
-  単なる担当業務の説明ではなく、
-  なぜその部署がこの課題を持つ必然性があるのかまで踏み込むこと。
 - 各項目は60〜120字程度
 - 固有名詞・前提条件・意思決定者・意思決定タイミングなど、具体情報を優先する
 - 不明な場合は「不明」と書いたうえで、推定ではなく不足情報として書く
@@ -1095,9 +1081,9 @@ def generate_problem_reframe_premise():
 
         st.session_state["reframe_c1_next_action"] = obj.get("c1_next_action", "")
         st.session_state["reframe_c2_exec_summary"] = obj.get("c2_exec_summary", "")
-        st.session_state["reframe_c3_process_gap"] = obj.get("c3_process_gap", "")
+        #st.session_state["reframe_c3_process_gap"] = obj.get("c3_process_gap", "")
         st.session_state["reframe_c4_business_brand"] = obj.get("c4_business_brand", "")
-        st.session_state["reframe_c5_org_mission"] = obj.get("c5_org_mission", "")
+        #st.session_state["reframe_c5_org_mission"] = obj.get("c5_org_mission", "")
         # c6 はユーザー任意入力枠。premise生成時は空で初期化（既入力があるなら上書きしない方が良い）
         if not (st.session_state.get("reframe_c6_user_notes") or "").strip():
             st.session_state["reframe_c6_user_notes"] = ""
@@ -1117,12 +1103,12 @@ def generate_problem_reframe():
     # ①の編集結果を取得
     c1 = (st.session_state.get("reframe_c1_next_action") or "").strip()
     c2 = (st.session_state.get("reframe_c2_exec_summary") or "").strip()
-    c3 = (st.session_state.get("reframe_c3_process_gap") or "").strip()
+    #c3 = (st.session_state.get("reframe_c3_process_gap") or "").strip()
     c4 = (st.session_state.get("reframe_c4_business_brand") or "").strip()
-    c5 = (st.session_state.get("reframe_c5_org_mission") or "").strip()
+    #c5 = (st.session_state.get("reframe_c5_org_mission") or "").strip()
     c6 = (st.session_state.get("reframe_c6_user_notes") or "").strip()
 
-    if not all([c1, c2, c3, c4, c5]):
+    if not all([c1, c2, c4, c6]):
         return False, "①の5観点が未入力の項目があります。先に前提整理を埋めてください。"
 
     orien_outline_text = st.session_state.get("orien_outline_text", "")
@@ -1141,10 +1127,8 @@ def generate_problem_reframe():
 【ユーザー編集済み：5観点の前提整理】
 1) ネクストアクション：{c1}
 2) 報告先が知りたいこと：{c2}
-3) マーケティングプロセス上の未解決：{c3}
-4) 事業・ブランド課題：{c4}
-5) 窓口部署ミッション：{c5}
-6) ユーザー任意追記（補足・別視点）：{c6 if c6 else "（未記入）"}
+3) 事業・ブランド課題：{c4}
+4) ユーザー任意追記（補足・別視点）：{c6 if c6 else "（未記入）"}
 
 【出力形式】
 次のキーを持つ JSON オブジェクト「だけ」を出力してください。
@@ -1377,9 +1361,7 @@ def append_revision(
         "problem_reframe": {
             "c1_next_action": st.session_state.get("reframe_c1_next_action", ""),
             "c2_exec_summary": st.session_state.get("reframe_c2_exec_summary", ""),
-            "c3_process_gap": st.session_state.get("reframe_c3_process_gap", ""),
             "c4_business_brand": st.session_state.get("reframe_c4_business_brand", ""),
-            "c5_org_mission": st.session_state.get("reframe_c5_org_mission", ""),
             "c6_user_notes": st.session_state.get("reframe_c6_user_notes", ""),
             "output": st.session_state.get("problem_reframe_output", {}) or {},
         },
@@ -1395,9 +1377,9 @@ def append_revision(
 
 def save_session_keys_to_active_revision() -> None:
     rev = get_active_revision()
-    rev.setdefault("kickoff", {})
     if not rev:
         return
+    rev.setdefault("kickoff", {})
 
     # 企画書本文（下書き）を保存
     rev["purpose_free"] = st.session_state.get("kickoff_purpose_free_editor", "") or ""
@@ -1424,18 +1406,33 @@ def save_session_keys_to_active_revision() -> None:
     rev["subq_list"] = st.session_state.get("subq_list", []) or []
     rev["subquestions_raw"] = st.session_state.get("ai_subquestions", "") or ""
 
+
     # --------------------
     # 3) 分析アプローチ（保存のみ：session_stateは破壊しない）
     # --------------------
     base_blocks = st.session_state.get("analysis_blocks", []) or []
 
+    # ★追加：subq_list（正）を取得しておく
+    ss_subq_list = st.session_state.get("subq_list", []) or []
+    ss_subq_texts = []
+    for sq in ss_subq_list:
+        d = dict(sq or {})
+        txt = (d.get("subq") or d.get("question") or "").strip()
+        ss_subq_texts.append(txt)
+
     blocks = []
     for i, b0 in enumerate(base_blocks, 1):
+        # UI入力があれば優先、なければ既存ブロック
         subq = st.session_state.get(f"analysis_subq_{i}", b0.get("subq", ""))
         axis = st.session_state.get(f"analysis_axis_{i}", b0.get("axis", ""))
         items = st.session_state.get(f"analysis_items_{i}", b0.get("items", ""))
         approach = st.session_state.get(f"analysis_approach_{i}", b0.get("approach", ""))
         hypothesis = st.session_state.get(f"analysis_hypothesis_{i}", b0.get("hypothesis", ""))
+
+        # ★重要：subq_list があれば、analysis側のsubqを追随させる（ズレ防止）
+        # ただし、analysis_subq_i に明示入力があるならそれを尊重したい場合は条件を変えてOK
+        if i <= len(ss_subq_texts) and ss_subq_texts[i - 1]:
+            subq = ss_subq_texts[i - 1]
 
         # 完全空は落とす
         if not any([str(subq).strip(), str(axis).strip(), str(items).strip(), str(approach).strip(), str(hypothesis).strip()]):
@@ -1451,8 +1448,9 @@ def save_session_keys_to_active_revision() -> None:
             "hypothesis": hypothesis,
         })
 
-    # ★重要：session_state["analysis_blocks"] は触らない
     rev["analysis_blocks"] = blocks
+
+
 
 
     # 4) 対象者条件案
@@ -1478,9 +1476,7 @@ def save_session_keys_to_active_revision() -> None:
     rev["problem_reframe"] = {
         "c1_next_action": st.session_state.get("reframe_c1_next_action", ""),
         "c2_exec_summary": st.session_state.get("reframe_c2_exec_summary", ""),
-        "c3_process_gap": st.session_state.get("reframe_c3_process_gap", ""),
         "c4_business_brand": st.session_state.get("reframe_c4_business_brand", ""),
-        "c5_org_mission": st.session_state.get("reframe_c5_org_mission", ""),
         "c6_user_notes": st.session_state.get("reframe_c6_user_notes", ""),
         "output": st.session_state.get("problem_reframe_output", {}) or {},
     }
@@ -1502,10 +1498,6 @@ def save_session_keys_to_active_revision() -> None:
         "len_found_analysis_blocks": len(((rev3 or {}).get("analysis_blocks") or [])),
     }
 
-
-
-def apply_revision_to_session(rev):
-    st.session_state["analysis_blocks"] = rev.get("analysis_blocks", []) or []
 
 
 def upsert_revision(updated: dict) -> None:
@@ -1534,12 +1526,19 @@ def upsert_revision(updated: dict) -> None:
 
 
 def apply_revision_to_session(rev: dict) -> None:
-    """
-    Revisionの内容を session_state（=Tab2のUIが参照するキー群）へ展開する。
-    Streamlitの「ウィジェット値が残る」問題を避けるため、関連キーも明示的に上書き/クリアする。
-    """
     if not rev:
         return
+
+    # --------------------
+    # Streamlit安全代入ヘルパー
+    # （ウィジェット生成後の上書きによるクラッシュ防止）
+    # --------------------
+    def _safe_set(key: str, value):
+        # すでに同名keyのウィジェットがこのrunで生成されている場合は触らない
+        if key in st.session_state:
+            return
+        st.session_state[key] = value
+
 
     # ウィジェットkeyは触らず editor側に反映し、保存用にも同期
     st.session_state["kickoff_purpose_free_editor"] = rev.get("purpose_free", "") or ""
@@ -1583,7 +1582,16 @@ def apply_revision_to_session(rev: dict) -> None:
     # --------------------
     # 2) 問いの分解
     # --------------------
-    st.session_state["subq_list"] = rev.get("subq_list", []) or []
+    _subq_list = rev.get("subq_list", []) or []
+    norm_list = []
+    for sq in _subq_list:
+        d = dict(sq or {})
+        txt = (d.get("subq") or d.get("question") or "").strip()
+        d["subq"] = txt
+        d["question"] = txt
+        norm_list.append(d)
+
+    st.session_state["subq_list"] = norm_list
     st.session_state["ai_subquestions"] = rev.get("subquestions_raw", "") or ""
 
     # 表示キャッシュは切替時にクリア（残像対策）
@@ -1592,23 +1600,39 @@ def apply_revision_to_session(rev: dict) -> None:
 
     # --------------------
     # 3) 分析アプローチ
+    #   - ここが本丸：subq_list（正）を analysis_blocks / analysis_subq_i に反映させる
     # --------------------
-    blocks = rev.get("analysis_blocks", []) or []
-    #st.session_state["analysis_blocks"] = blocks
-    st.session_state["analysis_blocks"] = rev.get("analysis_blocks", []) or []
-    # UIが参照している analysis_*_{i} を上書きしておく（旧値が残るのを防ぐ）
     MAX_I = 9
+
+    blocks = (rev.get("analysis_blocks") or []) or []
+    blocks2 = []
+
+    # 既存blocksがあるなら subq を subq_list に追随させる
+    if blocks:
+        for idx, b in enumerate(blocks):
+            b2 = dict(b or {})
+            if idx < len(norm_list):
+                b2["subq"] = norm_list[idx].get("subq", "") or ""
+            blocks2.append(b2)
+    else:
+        # 既存blocksが無い場合でも、analysis_subq_i が空にならないように
+        # ここでは blocks2 は空のまま（生成は別ボタン）でOK。UIキーだけ入れる。
+        blocks2 = []
+
+    # 正規化済み blocks を session に保存
+    st.session_state["analysis_blocks"] = blocks2
+
+    # UIが参照している analysis_*_{i} を上書き（残像を消す）
     for i in range(1, MAX_I + 1):
-        if i <= len(blocks):
-            b = blocks[i - 1] or {}
-            st.session_state[f"analysis_subq_{i}"] = b.get("subq", "")
-            st.session_state[f"analysis_axis_{i}"] = b.get("axis", "")
-            st.session_state[f"analysis_items_{i}"] = b.get("items", "")
-            st.session_state[f"analysis_approach_{i}"] = b.get("approach", "")
-            st.session_state[f"analysis_hypothesis_{i}"] = b.get("hypothesis", "")
+        if i <= len(blocks2):
+            b = blocks2[i - 1] or {}
+            st.session_state[f"analysis_subq_{i}"] = b.get("subq", "") or ""
+            st.session_state[f"analysis_axis_{i}"] = b.get("axis", "") or ""
+            st.session_state[f"analysis_items_{i}"] = b.get("items", "") or ""
+            st.session_state[f"analysis_approach_{i}"] = b.get("approach", "") or ""
+            st.session_state[f"analysis_hypothesis_{i}"] = b.get("hypothesis", "") or ""
         else:
-            # 余剰キーは空で上書き（別Revisionの残像を消す）
-            st.session_state[f"analysis_subq_{i}"] = ""
+            st.session_state[f"analysis_subq_{i}"] = (norm_list[i - 1]["subq"] if i <= len(norm_list) else "")
             st.session_state[f"analysis_axis_{i}"] = ""
             st.session_state[f"analysis_items_{i}"] = ""
             st.session_state[f"analysis_approach_{i}"] = ""
@@ -1647,22 +1671,17 @@ def apply_revision_to_session(rev: dict) -> None:
     # 7) 課題変換（前処理）
     pr = rev.get("problem_reframe", {}) or {}
 
-    # 前提整理(c1〜c6)
-    st.session_state["reframe_c1_next_action"] = pr.get("c1_next_action", "")
-    st.session_state["reframe_c2_exec_summary"] = pr.get("c2_exec_summary", "")
-    st.session_state["reframe_c3_process_gap"] = pr.get("c3_process_gap", "")
-    st.session_state["reframe_c4_business_brand"] = pr.get("c4_business_brand", "")
-    st.session_state["reframe_c5_org_mission"] = pr.get("c5_org_mission", "")
-    st.session_state["reframe_c6_user_notes"] = pr.get("c6_user_notes", "")
+    _safe_set("reframe_c1_next_action", pr.get("c1_next_action", ""))
+    _safe_set("reframe_c2_exec_summary", pr.get("c2_exec_summary", ""))
+    _safe_set("reframe_c4_business_brand", pr.get("c4_business_brand", ""))
+    _safe_set("reframe_c6_user_notes", pr.get("c6_user_notes", ""))
 
-    # ②生成結果(JSON)
-    st.session_state["problem_reframe_output"] = pr.get("output", {}) or {}
-
-    # 採用課題
-    st.session_state["true_problem_text"] = rev.get("true_problem_text", "") or ""
-
-    st.session_state["problem_reframe_generated"] = bool(st.session_state["problem_reframe_output"])
-
+    _safe_set("problem_reframe_output", pr.get("output", {}) or {})
+    _safe_set("true_problem_text", rev.get("true_problem_text", "") or "")
+    _safe_set(
+        "problem_reframe_generated",
+        bool(pr.get("output", {}) or {})
+    )
 
 
 
@@ -1919,6 +1938,44 @@ def run_phaseA_generation_and_append_revision(axis_text: str, axis_source: str =
 
     request_apply_revision(rev["rev_id"])
     return True, ""
+
+# def _render_kon_sq_compact_view(rev: dict | None, title: str, key_prefix: str):
+#     st.markdown(f"**{title}：KONの問い → サブクエスチョン（構造表示）**")
+#     if not rev:
+#         st.info("Revisionが未選択、または取得できませんでした。")
+#         return
+
+#     rev_id = rev.get("rev_id") or "no_rev"
+#     kickoff = (rev.get("kickoff") or {})
+#     kon_q = (kickoff.get("問い") or "").strip()
+
+#     subq_list = (rev.get("subq_list") or []) or []
+
+#     lines = []
+#     lines.append("【KON：問い】")
+#     lines.append(kon_q if kon_q else "（未設定）")
+#     lines.append("")
+#     lines.append("【SQ：サブクエスチョン】")
+
+#     if not subq_list:
+#         lines.append("（サブクエスチョンなし）")
+#     else:
+#         for i, sq in enumerate(subq_list, 1):
+#             sq_text = (sq.get("subq") or sq.get("question") or "").strip()
+#             lines.append(f"SQ{i}: {sq_text}")
+
+#     text = "\n".join(lines).strip()
+
+#     widget_key = f"{key_prefix}__{rev_id}__kon_sq_view"
+#     st.session_state[widget_key] = text  # 表示専用なので毎回上書きでOK
+
+#     st.text_area(
+#         "KON〜SQ（構造表示）",
+#         key=widget_key,
+#         height=320,
+#         disabled=True,  # ←まずは表示統一だけ。保存拡張は後で
+#     )
+
 
 
 
@@ -2273,16 +2330,26 @@ def generate_subquestions_draft():
         return False, f"問いの分解（サブクエスチョン）生成中にエラーが発生しました: {e}"
 
 
-
 def generate_analysis_approach_draft():
-    # """サブクエスチョン別の分析アプローチ案を AI で JSON 生成"""
-    ori_texts = get_orien_context_text()
-    if not ori_texts.strip():
-        return False, "オリエン資料が未入力です（アップロード or 手入力が必要です）。"
+    """サブクエスチョン別の分析アプローチ案を AI で JSON 生成（active revision を唯一の正とする）"""
 
-    orien_outline_text = st.session_state.get("orien_outline_text", "")
-    cat_df = st.session_state.get("df_category_structure")
-    beh_df = st.session_state.get("df_behavior_traits")
+    # =========================================================
+    # 0) active revision を確定（生成の正）
+    # =========================================================
+    rid = st.session_state.get("active_rev_id")
+    if not rid:
+        return False, "active_rev_id が未設定です。"
+
+    rev = find_revision(rid)
+    if not rev:
+        return False, f"active_rev_id={rid} のRevisionが見つかりません。"
+
+    # =========================================================
+    # 1) 必須入力チェック
+    # =========================================================
+    ori_texts = get_orien_context_text()
+    if not (ori_texts or "").strip():
+        return False, "オリエン資料が未入力です（アップロード or 手入力が必要です）。"
 
     # ★追加：フル生成の軸（課題ピボット6観点）
     axis_text = (st.session_state.get("fullgen_axis_text") or "").strip()
@@ -2290,28 +2357,54 @@ def generate_analysis_approach_draft():
     if not axis_text:
         return False, "フル生成の軸（課題ピボット6観点）が空です。『課題ピボット』で確定してから実行してください。"
 
-    kickoff = {
-        "目標": st.session_state.get("ai_目標", ""),
-        "現状": st.session_state.get("ai_現状", ""),
-        "ビジネス課題": st.session_state.get("ai_ビジネス課題", ""),
-        "調査目的": st.session_state.get("ai_調査目的", ""),
-        "問い": st.session_state.get("ai_問い", ""),
-        "仮説": st.session_state.get("ai_仮説", ""),
-    }
+    orien_outline_text = st.session_state.get("orien_outline_text", "") or ""
+    cat_df = st.session_state.get("df_category_structure")
+    beh_df = st.session_state.get("df_behavior_traits")
 
-    subq_list = st.session_state.get("subq_list", [])
-    if not subq_list:
-        return False, "サブクエスチョンがまだ生成されていません。"
+    # =========================================================
+    # 2) kickoff / subq_list の取得（rev を正として同期）
+    # =========================================================
+    kickoff = (rev.get("kickoff") or {}) or {}
+    kickoff_text = json.dumps(
+        {
+            "目標": kickoff.get("目標", ""),
+            "現状": kickoff.get("現状", ""),
+            "ビジネス課題": kickoff.get("ビジネス課題", ""),
+            "調査目的": kickoff.get("調査目的", ""),
+            "問い": kickoff.get("問い", ""),
+            "仮説": kickoff.get("仮説", ""),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
 
-    subq_text_lines = [f"SQ{i}: {sq.get('subq', '')}" for i, sq in enumerate(subq_list, 1)]
+    # ★重要：subq_list は rev を唯一の正とする
+    _subq_list = (rev.get("subq_list") or []) or []
+    if not _subq_list:
+        return False, "サブクエスチョンがまだ生成されていません（active revision の subq_list が空です）。"
+
+    # 正規化：subq/question を必ず揃える（過去の揺れ・None混入対策）
+    norm_list = []
+    for sq in _subq_list:
+        d = dict(sq or {})
+        txt = (d.get("subq") or d.get("question") or "").strip()
+        d["subq"] = txt
+        d["question"] = txt
+        norm_list.append(d)
+
+    # 生成直前に session_state も同期しておく（UI/他処理の参照ズレ防止）
+    st.session_state["subq_list"] = norm_list
+    st.session_state["ai_subquestions"] = rev.get("subquestions_raw", "") or ""
+
+    subq_text_lines = [f"SQ{i}: {sq.get('subq', '')}" for i, sq in enumerate(norm_list, 1)]
     subq_text = "\n".join(subq_text_lines)
 
     cat_text = cat_df.to_markdown(index=False) if cat_df is not None and not cat_df.empty else ""
     beh_text = beh_df.to_markdown(index=False) if beh_df is not None and not beh_df.empty else ""
 
-    # ★推奨：kickoffを読みやすく
-    kickoff_text = json.dumps(kickoff, ensure_ascii=False, indent=2)
-
+    # =========================================================
+    # 3) prompt
+    # =========================================================
     prompt = f"""
 あなたは市場調査設計の専門家です。
 以下のサブクエスチョンそれぞれについて、次の6項目の観点から分析アプローチの下書きを作成してください。
@@ -2333,10 +2426,10 @@ def generate_analysis_approach_draft():
 - hypothesis: 検証する仮説
 
 ▼オリエン統合コンテキスト（アップロード抽出＋手入力）
-{ori_texts[:4000]}
+{(ori_texts or "")[:4000]}
 
 ▼オリエン内容の整理（抜粋）
-{orien_outline_text[:2000]}
+{(orien_outline_text or "")[:2000]}
 
 ▼ブランド診断：カテゴリー構造
 {cat_text}
@@ -2367,10 +2460,14 @@ def generate_analysis_approach_draft():
 - 配列の要素数は、入力されたサブクエスチョンの数と同じにしてください。
 - axis: 分析軸（セグメント）の案が複数ある場合は最も優先度の高いもの1つを提示してください。
 - axis: 分析軸（セグメント）の案には15歳未満の対象属性を含めないこと（市場調査の綱領にて15歳未満にはアンケートを依頼することができないため）
-- axis: 分析軸（セグメント）の案には15歳未満の対象属性を含めないこと（市場80歳以上はアンケートに回答できない可能性が高いため）
+- axis: 分析軸（セグメント）の案には80歳以上はアンケートに回答できない可能性が高いため含めないこと
 - items: 評価項目案の後に（）で具体的な項目を記載してください。
 - hypothesis: 語尾に「〜の可能性が高い（ある）」を用いないでください。
 """
+
+    # =========================================================
+    # 4) call + parse
+    # =========================================================
     try:
         response = client.chat.completions.create(
             model=DEPLOYMENT,
@@ -2381,30 +2478,40 @@ def generate_analysis_approach_draft():
             temperature=0.6,
             max_tokens=2000,
         )
-        ai_text = response.choices[0].message.content.strip()
+        ai_text = (response.choices[0].message.content or "").strip()
 
-        # 既存処理を維持（必要なら後で堅牢化）
+        # コードフェンス除去（最低限）
         if ai_text.startswith("```"):
-            ai_text = ai_text.strip("`")
+            ai_text = ai_text.strip().strip("`")
             ai_text = ai_text.replace("json", "", 1).strip()
 
         blocks = json.loads(ai_text)
         if not isinstance(blocks, list):
             raise ValueError("JSON配列ではありません。")
 
-        # ★ MAX_I=9 固定：多い場合は先頭9つだけ採用
-        blocks = blocks[:9]
+        blocks = blocks[:9]  # MAX_I=9
 
-        # ★ id を強制的に SQ1..SQn に揃える（表示・紐付けが安定）
         for i, b in enumerate(blocks, 1):
             if isinstance(b, dict):
                 b["id"] = f"SQ{i}"
+                # subq も空なら norm_list から埋める（安全策）
+                if not (b.get("subq") or "").strip() and i <= len(norm_list):
+                    b["subq"] = norm_list[i - 1].get("subq", "")
 
+        # session_state に反映
         st.session_state["analysis_blocks"] = blocks
+
+        # ★保存：active rev に analysis_blocks を確実に書き戻す（後でズレない）
+        rev2 = dict(rev)
+        rev2["analysis_blocks"] = blocks
+        upsert_revision(rev2)
+
         return True, ""
 
     except Exception as e:
         return False, f"分析アプローチ案の生成中にエラーが発生しました: {e}"
+
+
 
 
 def generate_target_condition_draft():
@@ -4296,6 +4403,13 @@ def render_case_review_screen():
 
 
 
+def maybe_autosave_active_revision() -> None:
+    """Tab3の“毎回save”を1回だけ抑止するためのラッパー。"""
+    if st.session_state.pop("__skip_autosave_once", False):
+        return
+    if get_active_revision() is None:
+        return
+    save_session_keys_to_active_revision()
 
 
 # =========================================================
@@ -4380,8 +4494,100 @@ def ensure_server_template_loaded():
     st.session_state["pptx_path"] = str(target)
     st.session_state["template_loaded"] = True
 
+import io
+import json
+import zipfile
+from datetime import datetime
+
+import pandas as pd
+import streamlit as st
 
 
+def _make_survey_items_excel_bytes(session_state) -> bytes:
+    rows = session_state.get("survey_item_rows", []) or []
+    df = pd.DataFrame(rows)
+
+    # 期待列が無いケースに備えて最低限の列を用意（あなたの列設計に寄せる）
+    base_cols = [
+        "sq_id", "sq_subq", "items", "approach",
+        "var_name", "item_text", "recommended_type", "recommended_scale",
+        "priority", "table_role", "is_selected"
+    ]
+    for c in base_cols:
+        if c not in df.columns:
+            df[c] = ""
+
+    # bool正規化
+    if "is_selected" in df.columns:
+        df["is_selected"] = df["is_selected"].apply(
+            lambda x: True if str(x).strip() in ["", "True", "true", "1", "yes", "Yes", "Y", "y"] else False
+        )
+
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine="openpyxl") as writer:
+        df.to_excel(writer, sheet_name="all_items", index=False)
+
+        sel = df[df["is_selected"] == True].copy()
+        sel.to_excel(writer, sheet_name="selected_only", index=False)
+
+        # SQ別（見やすさ用）
+        if "sq_id" in df.columns:
+            df_sorted = df.sort_values(["sq_id", "priority"], ascending=[True, True])
+            df_sorted.to_excel(writer, sheet_name="by_sq", index=False)
+
+    return out.getvalue()
+
+
+def _make_project_json_bytes(session_state) -> bytes:
+    proj = build_project_from_session()  # ←あなたの既存関数
+    s = json.dumps(proj, ensure_ascii=False, indent=2)
+    return s.encode("utf-8")
+
+
+def _make_output_zip_bytes(session_state) -> tuple[bytes, str]:
+    """
+    returns: (zip_bytes, zip_filename)
+    """
+    # ZIP名（プロジェクト名＋日時）
+    project_name = (session_state.get("project_name") or "project").strip() or "project"
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_name = f"{project_name}_{ts}.zip"
+
+    # 1) Excel
+    excel_bytes = _make_survey_items_excel_bytes(session_state)
+
+    # 2) JSON
+    json_bytes = _make_project_json_bytes(session_state)
+
+    # 3) PPT（反映済みPPTを生成）
+    # run_step4_apply_current_ui_to_ppt が (out_path, report) を返す想定なので
+    # out_path を読み込んで bytes化します
+    out_path, report = run_step4_apply_current_ui_to_ppt(session_state)  # ←あなたの既存関数
+    ppt_bytes = out_path.read_bytes()
+    ppt_name = out_path.name  # 既存のファイル名をそのままZIPへ
+
+    # ZIP化
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(f"{project_name}/survey_items.xlsx", excel_bytes)
+        zf.writestr(f"{project_name}/{project_name}.json", json_bytes)
+        zf.writestr(f"{project_name}/{ppt_name}", ppt_bytes)
+
+        # 任意：反映レポートも入れると便利
+        rep = json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8")
+        zf.writestr(f"{project_name}/ppt_apply_report.json", rep)
+
+    return zbuf.getvalue(), zip_name
+
+
+# =========================================================
+# pending apply（ウィジェット生成前にrev内容をsessionへ適用）
+# =========================================================
+# pending_id = st.session_state.pop("pending_apply_rev_id", None)
+# if pending_id:
+#     rev = find_revision(pending_id)
+#     if rev:
+#         apply_revision_to_session(rev)  # ←ここなら安全（まだウィジェットが作られていない）
 
 
 
@@ -4496,7 +4702,7 @@ with center:
     # ★初回アクセス時だけガイド表示（初動の心理的壁を下げる）
     if "__ui_first_visit" not in st.session_state:
         render_character_guide(
-            "ようこそ！",
+            "みなの知恵へ、ようこそ！",
             "現在このツールでは企画書作成をサポートしているよ。作成できる企画書のスライドは以下です。\n"
             "- キックオフノート（KON）\n"
             "- サブクエスチョン（SQ）\n"
@@ -4815,15 +5021,30 @@ with center:
             st.code(st.session_state["funnel_text"], language="text")
 
 
-
-    # ----------------------------------------
-    # 企画書下書きモード（一括結果を中央に表示）
-    # ----------------------------------------
     elif mode == "proposal_draft":
 
         ensure_revision_store()
 
-        # active_rev_id が無ければ、最新revをactiveにする or 新規作成する
+
+        # =========================================================
+        # active_rev_id が変わったら、必ずそのrevを session_state に適用する
+        # （apply前に save が走って巻き戻るのを防ぐ）
+        # =========================================================
+        active_now = st.session_state.get("active_rev_id")
+        last_applied = st.session_state.get("__last_applied_rev_id")
+
+        if active_now and active_now != last_applied:
+            rev = find_revision(active_now)
+            if rev:
+                apply_revision_to_session(rev)
+                st.session_state["__last_applied_rev_id"] = active_now
+                # ★次の描画1回だけ自動保存を止める（巻き戻り防止）
+                st.session_state["__skip_autosave_once"] = True
+
+
+        # -------------------------------------------------
+        # 0) active_rev_id を確実に用意
+        # -------------------------------------------------
         if not st.session_state.get("active_rev_id"):
             revs = get_revisions() or []
             if revs:
@@ -4833,64 +5054,42 @@ with center:
                 upsert_revision(rev)
                 st.session_state["active_rev_id"] = rev["rev_id"]
 
-        # ★ここで「初回だけ」UIへ復元（tabsより前）
-        if not st.session_state.get("__proposal_draft_hydrated"):
+        # -------------------------------------------------
+        # 1) KON～SQ からの「採用して反映」予約を最優先で処理（UI生成より前）
+        #    ※ pending_apply_rev_id はここで 1回だけ pop する
+        # -------------------------------------------------
+        # pending_id = st.session_state.pop("pending_apply_rev_id", None)
+        # if pending_id:
+        #     rev = find_revision(pending_id)
+        #     if rev:
+        #         st.session_state["active_rev_id"] = pending_id
+        #         apply_revision_to_session(rev)
+
+        #         # hydration 管理をリセット（後段の保険）
+        #         st.session_state["__hydrated_rev_id"] = pending_id
+        #     else:
+        #         st.warning("採用したRevisionが見つかりませんでした（削除された可能性があります）。")
+
+        # -------------------------------------------------
+        # 2) hydration（active_rev_id が変わった時だけ apply）
+        #    ＝初回 or active切替時に必ず session_state を同期
+        # -------------------------------------------------
+        active_id = st.session_state.get("active_rev_id")
+        if st.session_state.get("__hydrated_rev_id") != active_id:
             rev = get_active_revision()
             if rev:
                 apply_revision_to_session(rev)
-            st.session_state["__proposal_draft_hydrated"] = True
+            st.session_state["__hydrated_rev_id"] = active_id
 
-
-        # # ★rev側デバッグ（apply直後）
-        # rev_dbg = get_active_revision() or {}
-        # st.warning(
-        #     "DEBUG active rev contents: "
-        #     f"rev_id={rev_dbg.get('rev_id')} / "
-        #     f"label={rev_dbg.get('label')} / "
-        #     f"len(purpose_free)={len((rev_dbg.get('purpose_free') or '').strip())} / "
-        #     f"len(target_condition)={len((rev_dbg.get('target_condition') or '').strip())} / "
-        #     f"len(analysis_blocks)={len(rev_dbg.get('analysis_blocks', []) or [])}"
-        # )
-
-
-
-        # （任意）デバッグは apply 後に見る
-        def _len(v):
-            if v is None:
-                return 0
-            if isinstance(v, str):
-                return len(v.strip())
-            if isinstance(v, list):
-                return len(v)
-            if isinstance(v, dict):
-                return len(v)
-            return 1
-
-        KEYS_TO_CHECK = [
-            "kickoff_purpose_free_editor",
-            "kickoff_purpose_free",
-            "orien_outline_text",
-            "pivot_axis_text_compiled",
-            "pivot_axis_texts_committed",
-            "ai_target_condition",
-            "ai_target_condition_editor",
-            "analysis_blocks",
-            "active_rev_id",
-        ]
-
-        # st.warning("DEBUG proposal_draft state (after apply): " + " / ".join(
-        #     [f"{k}={_len(st.session_state.get(k))}" for k in KEYS_TO_CHECK]
-        # ) + f" / revisions={len(get_revisions() or [])}")
-
+        # -------------------------------------------------
+        # 3) ここから下で UI を描き始める
+        # -------------------------------------------------
         st.markdown("## 企画書下書き")
-
         st.session_state["proposal_draft_generated"] = bool(get_revisions())
 
-
-        # =========================================================
-        # 2タブに分割
-        # =========================================================
         tab_pivot, tab_gen, tab_edit = st.tabs(["課題ピボット", "KON～SQ", "分析イメージ"])
+
+
 
         # =========================================================
         # TAB 1: 課題ピボット
@@ -4974,11 +5173,6 @@ with center:
             with st.container(border=True):
                 st.markdown("#### WHAT（中位）：意思決定視点 — 調査で何を明らかにし、何を判断するのか")
                 st.text_area(
-                    "マーケティングプロセス上、未解決のステップと思われること（詰まり／ギャップ）",
-                    key="reframe_c3_process_gap",
-                    height=110,
-                )
-                st.text_area(
                     "報告先（組織長など）が知りたいこと（意思決定論点）",
                     key="reframe_c2_exec_summary",
                     height=110,
@@ -4987,11 +5181,6 @@ with center:
             # HOW（下位）
             with st.container(border=True):
                 st.markdown("#### HOW（下位）：実行視点 — 誰が何を担い、調査後にどう動くのか")
-                st.text_area(
-                    "依頼窓口部署のミッション（役割・責任範囲）",
-                    key="reframe_c5_org_mission",
-                    height=110,
-                )
                 st.text_area(
                     "調査結果を受けて次にすること（ネクストアクション）",
                     key="reframe_c1_next_action",
@@ -5018,17 +5207,15 @@ with center:
             pivot_items = [
                 ("1) 調査結果を受けて次にすること（ネクストアクション）", st.session_state.get("reframe_c1_next_action", "")),
                 ("2) 報告先（組織長など）が知りたいこと", st.session_state.get("reframe_c2_exec_summary", "")),
-                ("3) マーケティングプロセス上、未解決のステップと思われること", st.session_state.get("reframe_c3_process_gap", "")),
-                ("4) 事業やブランドが抱える課題", st.session_state.get("reframe_c4_business_brand", "")),
-                ("5) 依頼窓口部署のミッション", st.session_state.get("reframe_c5_org_mission", "")),
-                ("6) 任意の追記（補足・前提条件・懸念・別視点など）", st.session_state.get("reframe_c6_user_notes", "")),
+                ("3) 事業やブランドが抱える課題", st.session_state.get("reframe_c4_business_brand", "")),
+                ("4) 任意の追記（補足・前提条件・懸念・別視点など）", st.session_state.get("reframe_c6_user_notes", "")),
             ]
 
             committed = bool(st.session_state.get("pivot_axis_texts_committed", False))
             if committed:
-                st.success("課題ピボット（6観点）は『生成・比較』に反映済みです。内容を変更した場合は、再度『反映（確定）』してください。")
+                st.success("課題ピボット（4観点）は『KON～SQ』に反映済みです。内容を変更した場合は、再度『反映（確定）』してください。")
             else:
-                st.warning("課題ピボット（6観点）は、まだ『生成・比較』に反映されていません。下のボタンで反映してください。")
+                st.warning("課題ピボット（4観点）は、まだ『KON～SQ』に反映されていません。下のボタンで反映してください。")
 
             col_commit, col_preview = st.columns([1, 2], gap="small")
 
@@ -5036,27 +5223,21 @@ with center:
                 if st.button("確認完了", use_container_width=True, key="btn_commit_pivot_axis"):
                     pivot_map = {
                         "c4_business_brand": (st.session_state.get("reframe_c4_business_brand", "") or "").strip(),
-                        "c3_process_gap": (st.session_state.get("reframe_c3_process_gap", "") or "").strip(),
                         "c2_exec_summary": (st.session_state.get("reframe_c2_exec_summary", "") or "").strip(),
-                        "c5_org_mission": (st.session_state.get("reframe_c5_org_mission", "") or "").strip(),
                         "c1_next_action": (st.session_state.get("reframe_c1_next_action", "") or "").strip(),
                         "c6_user_notes": (st.session_state.get("reframe_c6_user_notes", "") or "").strip(),
                     }
 
                     pivot_labels = {
-                        "c4_business_brand": "事業やブランドが抱える課題",
-                        "c3_process_gap": "マーケティングプロセス上、未解決のステップ",
-                        "c2_exec_summary": "報告先（組織長など）が知りたいこと",
-                        "c5_org_mission": "依頼窓口部署のミッション",
-                        "c1_next_action": "調査結果を受けて次にすること（ネクストアクション）",
-                        "c6_user_notes": "任意の追記（補足・前提条件・懸念・別視点など）",
+                        "c4_business_brand": "事業やブランド視点",
+                        "c2_exec_summary": "意思決定視点",
+                        "c1_next_action": "実行視点",
+                        "c6_user_notes": "クライアント課題（手書き）",
                     }
 
                     ordered_keys = [
                         "c4_business_brand",
-                        "c3_process_gap",
                         "c2_exec_summary",
-                        "c5_org_mission",
                         "c1_next_action",
                         "c6_user_notes",
                     ]
@@ -5117,14 +5298,13 @@ with center:
                 # 選択肢（キー）を固定順で並べる
                 axis_keys = [
                     "c4_business_brand",
-                    "c3_process_gap",
                     "c2_exec_summary",
-                    "c5_org_mission",
                     "c1_next_action",
                     "c6_user_notes",
                 ]
 
                 def _fmt_axis(k: str) -> str:
+                    # 表示を「日本語ラベル」にしたい場合はここ
                     return pivot_labels.get(k, k)
 
                 st.selectbox(
@@ -5149,7 +5329,7 @@ with center:
             col_a, col_b = st.columns([1, 2], gap="small")
             with col_a:
                 if st.button(
-                    "新規作成（KON〜SQ）",
+                    "新規作成",
                     use_container_width=True,
                     key="btn_phaseA_tab_gen",
                     disabled=(not pivot_committed or not selected_text),
@@ -5161,7 +5341,7 @@ with center:
                         )
 
                     if ok:
-                        st.success("KON〜SQのRevisionを追加しました。下で比較できます。")
+                        st.success("KON〜SQを追加しました。下で比較できます。")
 
                         revs_tmp = get_revisions() or []
                         if revs_tmp:
@@ -5173,15 +5353,13 @@ with center:
                                 st.session_state["active_rev_id"] = latest_id
                                 st.session_state.pop("__proposal_draft_hydrated", None)
 
-                                # ★右側：最新を強制
-                                st.session_state["__force_compare_right_rev_id"] = latest_id
+                                # （左右表示順の制御は既にあなたが反映済み：左=最新、右=1つ前）
+                                st.session_state["__force_compare_left_rev_id"] = latest_id
 
-                                # ★追加：左側も「1つ前」に寄せる（比較として自然）
-                                # 2件以上ある場合のみ
                                 if len(revs_tmp) >= 2:
                                     prev_id = revs_tmp[-2].get("rev_id")
                                     if prev_id:
-                                        st.session_state["__force_compare_left_rev_id"] = prev_id
+                                        st.session_state["__force_compare_right_rev_id"] = prev_id
 
                         st.rerun()  # ★成功時だけ rerun
                     else:
@@ -5196,20 +5374,17 @@ with center:
             # =========================================================
             revs = get_revisions()
             if not revs:
-                st.info("新規作成（KON〜SQ）ボタンを押してください。")
+                st.info("新規作成ボタンを押してください。")
             else:
                 # ---------- 表示専用関数（ここで定義してOK） ----------
-                def _render_kickoff_block(rev: dict | None, title: str, key_prefix: str):
-                    """
-                    比較表示専用：常にユニークkeyで表示し、値は毎回 session_state に上書きして
-                    Streamlitの「valueが効かない」問題を回避する。
-                    """
+
+                def _render_kickoff_block_editable(rev: dict | None, title: str, key_prefix: str):
                     if not rev:
                         st.info("Revisionが未選択、または取得できませんでした。")
                         return
 
-                    k = (rev.get("kickoff") or {})
                     rev_id = rev.get("rev_id") or "no_rev"
+                    k = (rev.get("kickoff") or {})
 
                     st.write(f"**{title}：{rev.get('label','')}**")
                     axis = rev.get("axis_source") or ""
@@ -5217,52 +5392,183 @@ with center:
                     meta = f"axis:{axis}" if axis else f"purpose:{pkey}"
                     st.caption(f"{rev.get('created_at','')} / {meta}")
 
-                    def show(field_label: str, field_key: str, height: int = 80):
-                        widget_key = f"{key_prefix}__{rev_id}__{field_key}"
-                        st.session_state[widget_key] = k.get(field_label, "") or ""
+                    fields = ["目標", "現状", "ビジネス課題", "調査目的", "問い", "仮説"]
+
+                    for field_label in fields:
+                        widget_key = f"{key_prefix}__{rev_id}__kickoff__{field_label}"
+
+                        # 初回だけ rev→UI に注入（毎回上書きしない）
+                        if widget_key not in st.session_state:
+                            st.session_state[widget_key] = k.get(field_label, "") or ""
+
                         st.text_area(
                             field_label,
-                            height=height,
-                            disabled=True,
+                            height=120,
                             key=widget_key,
+                            disabled=False,
                         )
 
-                    show("目標", "to_be")
-                    show("現状", "as_is")
-                    show("ビジネス課題", "problem")
-                    show("調査目的", "purpose")
-                    show("問い", "question")
-                    show("仮説", "hypothesis")
+                    # ★ここから下は「ループの外」で1回だけ
+                    new_kickoff = dict(k)
+                    for field_label in fields:
+                        widget_key = f"{key_prefix}__{rev_id}__kickoff__{field_label}"
+                        new_kickoff[field_label] = st.session_state.get(widget_key, "") or ""
 
-                def _render_subq_block(subq_list: list, title: str, key_prefix: str, rev_id: str):
+                    # ★重要：最新のRevisionを取り直して、kickoffだけ差し替える（SQ巻き戻り防止）
+                    rev_latest = find_revision(rev_id) or rev
+                    rev2 = dict(rev_latest)
+                    rev2["kickoff"] = new_kickoff
+                    upsert_revision(rev2)
+
+
+
+                def _render_subq_block_editable(rev: dict | None, title: str, key_prefix: str):
                     st.markdown(f"**{title}：問いの分解（サブクエスチョン）**")
+                    if not rev:
+                        st.info("Revisionが未選択、または取得できませんでした。")
+                        return
+
+                    rev_id = rev.get("rev_id") or "no_rev"
+                    subq_list = (rev.get("subq_list") or []) or []
 
                     if not subq_list:
                         st.info("サブクエスチョンがありません。")
                         return
 
-                    lines = []
                     for i, sq in enumerate(subq_list, 1):
-                        text = sq.get("subq") or sq.get("question") or ""
-                        lines.append(f"SQ{i}: {text}")
+                        widget_key = f"{key_prefix}__{rev_id}__subq__{i}"
+                        if widget_key not in st.session_state:
+                            st.session_state[widget_key] = sq.get("subq") or sq.get("question") or ""
 
-                    widget_key = f"{key_prefix}__{rev_id}__subq_view"
-                    st.session_state[widget_key] = "\n".join(lines)
+                        st.text_area(f"SQ{i}", key=widget_key, height=120, disabled=False)
+
+
+
+                def _render_kon_sq_compact_view(rev: dict | None, title: str, key_prefix: str):
+                    """
+                    KONの「問い（メインクエスチョン）」とSQを、分析イメージタブと同じ階層表示で1つのtext_areaにまとめて表示（read-only）。
+                    """
+                    st.markdown(f"**{title}：KONの問い → サブクエスチョン（構造表示）**")
+
+                    if not rev:
+                        st.info("Revisionが未選択、または取得できませんでした。")
+                        return
+
+                    import re
+
+                    rev_id = rev.get("rev_id") or "no_rev"
+
+                    rev = find_revision(rev_id) or rev   # ★最新を取り直す
+
+                    kickoff = (rev.get("kickoff") or {})
+                    main_question_text = (kickoff.get("問い") or "").strip()
+                    subq_list = (rev.get("subq_list") or []) or []
+
+                    def split_main_questions(text: str):
+                        """
+                        分析イメージタブと同じ分割ロジック（番号/ Qx: などを想定）
+                        """
+                        if not text:
+                            return []
+                        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+                        questions, buf = [], ""
+                        for line in lines:
+                            m = re.match(r"^(?:\d+[\.\)]|Q\d+[:：])\s*(.+)", line)
+                            if m:
+                                if buf:
+                                    questions.append(buf.strip())
+                                buf = m.group(1)
+                            else:
+                                buf = (buf + " " + line).strip() if buf else line
+                        if buf:
+                            questions.append(buf.strip())
+                        return questions or ([text.strip()] if text.strip() else [])
+
+                    main_questions = split_main_questions(main_question_text)
+
+                    # まず親（メインクエスチョン）ごとに箱を用意
+                    if not main_questions:
+                        grouped = {"(メインクエスチョン未設定)": []}
+                    else:
+                        grouped = {mq: [] for mq in main_questions}
+
+                    # subq_list を親に紐付け
+                    if subq_list:
+                        for idx, sq in enumerate(subq_list):
+                            explicit_parent = (sq.get("main") or sq.get("main_question") or "").strip()
+
+                            if explicit_parent and explicit_parent in grouped:
+                                grouped[explicit_parent].append(sq)
+                            else:
+                                # フォールバック：順番で均等に割り当て
+                                if main_questions:
+                                    parent = main_questions[idx % len(main_questions)]
+                                else:
+                                    parent = "(メインクエスチョン未設定)"
+                                grouped.setdefault(parent, []).append(sq)
+
+                    # 表示文字列を構造化
+                    lines = []
+                    lines.append("【問い（メインクエスチョン）→ サブクエスチョン】")
+                    lines.append("")
+
+                    if not grouped:
+                        lines.append("（未設定）")
+                    else:
+                        for mq_idx, (mq, sqs) in enumerate(grouped.items(), 1):
+                            lines.append(f"{mq_idx}. メインクエスチョン{mq_idx}：{mq}")
+                            if not sqs:
+                                lines.append("    ┗ （サブクエスチョン未設定）")
+                            else:
+                                for j, sq in enumerate(sqs, 1):
+                                    sq_text = (sq.get("subq") or sq.get("question") or "").strip()
+                                    lines.append(f"    ┗ {j}. サブクエスチョン{j}：{sq_text}")
+                            lines.append("")
+
+                    text = "\n".join(lines).strip()
+
+                    widget_key = f"{key_prefix}__{rev_id}__kon_sq_view"
+                    st.session_state[widget_key] = text  # 表示専用なので毎回上書き
 
                     st.text_area(
-                        "サブクエスチョン一覧",
-                        height=220,
-                        disabled=True,
+                        "KON〜SQ（構造表示）",
                         key=widget_key,
+                        height=380,
+                        disabled=True,
                     )
+
+
+
 
                 # ---------- rev_id 方式：選択値は rev_id に統一 ----------
                 rev_ids = [r["rev_id"] for r in revs if r.get("rev_id")]
-                id_to_label = {r["rev_id"]: r.get("label", "") for r in revs}
 
                 if not rev_ids:
                     st.error("Revisionの rev_id が取得できませんでした。append_revision の実装を確認してください。")
                 else:
+                    # rev_id -> rev を引ける辞書（format_func で使う）
+                    rev_by_id = {r.get("rev_id"): r for r in revs if r.get("rev_id")}
+
+                    def _display_rev_name(rev_id: str) -> str:
+                        """
+                        セレクトボックスの選択肢表記を「中心となる課題（課題ピボット）のKEY」基準にする。
+                        axis_source が "pivot:<key>" の場合は pivot_labels を使って表示する。
+                        """
+                        r = rev_by_id.get(rev_id, {}) or {}
+                        axis = (r.get("axis_source") or "").strip()
+
+                        if axis.startswith("pivot:"):
+                            pivot_key = axis.split("pivot:", 1)[1].strip()
+
+                            # 表示を「KEYのみ」にしたい場合はこちら
+                            # return pivot_key
+
+                            # 表示を「日本語ラベル + (KEY)」にしたい場合はこちら（おすすめ）
+                            return f"{pivot_labels.get(pivot_key, pivot_key)} ({pivot_key})"
+
+                        # pivot由来でないRevisionは label にフォールバック
+                        return r.get("label") or rev_id
+
                     def _find_rev_id_by_stage(stage: str) -> str | None:
                         for r in revs:
                             if r.get("stage") == stage:
@@ -5303,13 +5609,13 @@ with center:
                             "左に表示するKON～SQ（比較A）",
                             options=rev_ids,
                             key="compare_left_rev_id",
-                            format_func=lambda rid: id_to_label.get(rid, rid),
+                            format_func=_display_rev_name,
                         )
                         left_rev = find_revision(st.session_state["compare_left_rev_id"])
                         left_subq = (left_rev or {}).get("subq_list", [])
 
                         if left_rev:
-                            _render_kickoff_block(left_rev, "左（比較A）", "cmp_left")
+                            _render_kickoff_block_editable(left_rev, "左（比較A）", "cmp_left")
                         else:
                             st.info("左側に表示するRevisionを選択してください。")
 
@@ -5318,38 +5624,238 @@ with center:
                             "右に表示するKON～SQ（比較B）",
                             options=rev_ids,
                             key="compare_right_rev_id",
-                            format_func=lambda rid: id_to_label.get(rid, rid),
+                            format_func=_display_rev_name,
                         )
                         right_rev = find_revision(st.session_state["compare_right_rev_id"])
                         right_subq = (right_rev or {}).get("subq_list", [])
 
                         if right_rev:
-                            _render_kickoff_block(right_rev, "右（比較B）", "cmp_right")
+                            _render_kickoff_block_editable(right_rev, "右（比較B）", "cmp_right")
                         else:
                             st.info("右側に表示するRevisionを選択してください。")
 
-                    # （任意）デバッグ：状態確認したい場合だけ有効化
-                    # st.write(
-                    #     "LEFT:", st.session_state["compare_left_rev_id"],
-                    #     (left_rev or {}).get("label"),
-                    #     "kickoff keys:", list(((left_rev or {}).get("kickoff") or {}).keys())
-                    # )
-                    # st.write(
-                    #     "RIGHT:", st.session_state["compare_right_rev_id"],
-                    #     (right_rev or {}).get("label"),
-                    #     "kickoff keys:", list(((right_rev or {}).get("kickoff") or {}).keys())
-                    # )
-
                     # --- 問いの分解（左右比較） ---
+                    # --- KONの問い → SQ（左右比較：統合表示） ---
                     c1, c2 = st.columns(2, gap="large")
-                    left_rev_id = left_rev.get("rev_id") if left_rev else "no_rev"
-                    right_rev_id = right_rev.get("rev_id") if right_rev else "no_rev"
 
                     with c1:
-                        _render_subq_block(left_subq, "左（比較A）", "cmp_left", left_rev_id)
+                        _render_kon_sq_compact_view(left_rev, "左（比較A）", "cmp_left")
+
+                        # 編集用（保存ボタンで確定）
+                        with st.expander("SQの編集（左）", expanded=False):
+                            _render_subq_block_editable(left_rev, "左（比較A）", "cmp_left")
+
+                            if st.button("左のSQを保存", use_container_width=True, key="btn_save_left_sq"):
+                                if left_rev and left_rev.get("rev_id"):
+                                    rev_id = left_rev["rev_id"]
+
+                                    # 念のため最新のRevisionを取り直す（保存競合防止）
+                                    rev_latest = find_revision(rev_id) or left_rev
+                                    subq_list = (rev_latest.get("subq_list") or []) or []
+
+                                    new_list = []
+                                    lines_for_raw = []
+
+                                    for i, sq in enumerate(subq_list, 1):
+                                        widget_key = f"cmp_left__{rev_id}__subq__{i}"
+                                        txt = (st.session_state.get(widget_key, "") or "").strip()
+
+                                        new_sq = dict(sq)
+                                        # ★重要：subq だけでなく question も同じ値に揃える（戻り防止）
+                                        new_sq["subq"] = txt
+                                        new_sq["question"] = txt
+
+                                        new_list.append(new_sq)
+                                        if txt:
+                                            lines_for_raw.append(f"SQ{i}: {txt}")
+
+                                    rev2 = dict(rev_latest)
+                                    rev2["subq_list"] = new_list
+                                    rev2["subquestions_raw"] = "\n".join(lines_for_raw)
+
+                                    # ★追加：analysis_blocks の subq も subq_list に追随させる（戻り防止の本丸）
+                                    blocks = (rev_latest.get("analysis_blocks") or []) or []
+                                    blocks2 = []
+                                    for idx, b in enumerate(blocks):
+                                        b2 = dict(b or {})
+                                        if idx < len(new_list):
+                                            b2["subq"] = new_list[idx].get("subq", "") or ""
+                                        blocks2.append(b2)
+                                    rev2["analysis_blocks"] = blocks2
+
+                                    upsert_revision(rev2)
+
+                                    # 比較レーン固定して rerun
+                                    st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
+                                    st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
+
+                                    st.success("左（比較A）のSQを保存しました。")
+                                    st.rerun()
+                                else:
+                                    st.warning("左（比較A）のRevisionが取得できません。")
 
                     with c2:
-                        _render_subq_block(right_subq, "右（比較B）", "cmp_right", right_rev_id)
+                        _render_kon_sq_compact_view(right_rev, "右（比較B）", "cmp_right")
+
+                        # 編集用（保存ボタンで確定）
+                        with st.expander("SQの編集（右）", expanded=False):
+                            _render_subq_block_editable(right_rev, "右（比較B）", "cmp_right")
+
+                            if st.button("右のSQを保存", use_container_width=True, key="btn_save_right_sq"):
+                                if right_rev and right_rev.get("rev_id"):
+                                    rev_id = right_rev["rev_id"]
+
+                                    # 念のため最新のRevisionを取り直す（保存競合防止）
+                                    rev_latest = find_revision(rev_id) or right_rev
+                                    subq_list = (rev_latest.get("subq_list") or []) or []
+
+                                    new_list = []
+                                    lines_for_raw = []
+
+                                    for i, sq in enumerate(subq_list, 1):
+                                        widget_key = f"cmp_right__{rev_id}__subq__{i}"
+                                        txt = (st.session_state.get(widget_key, "") or "").strip()
+
+                                        new_sq = dict(sq)
+                                        # ★重要：subq だけでなく question も同じ値に揃える（戻り防止）
+                                        new_sq["subq"] = txt
+                                        new_sq["question"] = txt
+
+                                        new_list.append(new_sq)
+                                        if txt:
+                                            lines_for_raw.append(f"SQ{i}: {txt}")
+
+                                    rev2 = dict(rev_latest)
+                                    rev2["subq_list"] = new_list
+                                    rev2["subquestions_raw"] = "\n".join(lines_for_raw)
+
+                                    # ★追加：analysis_blocks の subq も subq_list に追随させる（戻り防止の本丸）
+                                    blocks = (rev_latest.get("analysis_blocks") or []) or []
+                                    blocks2 = []
+                                    for idx, b in enumerate(blocks):
+                                        b2 = dict(b or {})
+                                        if idx < len(new_list):
+                                            b2["subq"] = new_list[idx].get("subq", "") or ""
+                                        blocks2.append(b2)
+                                    rev2["analysis_blocks"] = blocks2
+
+                                    upsert_revision(rev2)
+
+
+                                    # 比較レーン固定して rerun
+                                    st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
+                                    st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
+
+                                    st.success("右（比較B）のSQを保存しました。")
+                                    st.rerun()
+                                else:
+                                    st.warning("右（比較B）のRevisionが取得できません。")
+
+                    # =========================================================
+                    # KON～SQ（左右比較）の採用 → 編集タブ（分析イメージ）へ反映
+                    # =========================================================
+                    st.markdown("---")
+                    st.markdown("### この案を採用して、分析イメージタブへ反映")
+
+                    col_apply_l, col_apply_r = st.columns(2, gap="small")
+
+                    with col_apply_l:
+                        if st.button("左（比較A）を採用して反映", use_container_width=True, key="btn_apply_left_to_active"):
+                            if left_rev and left_rev.get("rev_id"):
+                                rid = left_rev["rev_id"]
+
+                                # ★採用前に、いま編集中のSQをrevに保存してから反映（戻り防止）
+                                rev_latest = find_revision(rid) or left_rev
+                                subq_list = (rev_latest.get("subq_list") or []) or []
+
+                                new_list = []
+                                lines_for_raw = []
+                                for i, sq in enumerate(subq_list, 1):
+                                    widget_key = f"cmp_left__{rid}__subq__{i}"
+                                    txt = (st.session_state.get(widget_key, "") or "").strip()
+                                    new_sq = dict(sq or {})
+                                    new_sq["subq"] = txt
+                                    new_sq["question"] = txt
+                                    new_list.append(new_sq)
+                                    if txt:
+                                        lines_for_raw.append(f"SQ{i}: {txt}")
+
+                                rev2 = dict(rev_latest)
+                                rev2["subq_list"] = new_list
+                                rev2["subquestions_raw"] = "\n".join(lines_for_raw)
+
+                                blocks = (rev_latest.get("analysis_blocks") or []) or []
+                                blocks2 = []
+                                for idx, b in enumerate(blocks):
+                                    b2 = dict(b or {})
+                                    if idx < len(new_list):
+                                        b2["subq"] = new_list[idx].get("subq", "") or ""
+                                    blocks2.append(b2)
+                                rev2["analysis_blocks"] = blocks2
+
+                                upsert_revision(rev2)
+
+                                # ★ここでは set_active_revision() を呼ばない（あなたの方針でOK）
+                                st.session_state["active_rev_id"] = rid
+                                st.session_state["pending_apply_rev_id"] = rid
+
+                                st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
+                                st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
+
+                                st.rerun()
+
+                            else:
+                                st.warning("左（比較A）のRevisionが取得できません。")
+
+                    with col_apply_r:
+                        if st.button("（比較B）を採用して反映", use_container_width=True, key="btn_apply_right_to_active"):
+                            if right_rev and right_rev.get("rev_id"):
+                                rid = right_rev["rev_id"]
+
+                                # ★採用前に、いま編集中のSQをrevに保存してから反映（戻り防止）
+                                rev_latest = find_revision(rid) or right_rev
+                                subq_list = (rev_latest.get("subq_list") or []) or []
+
+                                new_list = []
+                                lines_for_raw = []
+                                for i, sq in enumerate(subq_list, 1):
+                                    widget_key = f"cmp_right__{rid}__subq__{i}"
+                                    txt = (st.session_state.get(widget_key, "") or "").strip()
+                                    new_sq = dict(sq or {})
+                                    new_sq["subq"] = txt
+                                    new_sq["question"] = txt
+                                    new_list.append(new_sq)
+                                    if txt:
+                                        lines_for_raw.append(f"SQ{i}: {txt}")
+
+                                rev2 = dict(rev_latest)
+                                rev2["subq_list"] = new_list
+                                rev2["subquestions_raw"] = "\n".join(lines_for_raw)
+
+                                blocks = (rev_latest.get("analysis_blocks") or []) or []
+                                blocks2 = []
+                                for idx, b in enumerate(blocks):
+                                    b2 = dict(b or {})
+                                    if idx < len(new_list):
+                                        b2["subq"] = new_list[idx].get("subq", "") or ""
+                                    blocks2.append(b2)
+                                rev2["analysis_blocks"] = blocks2
+
+                                upsert_revision(rev2)
+
+                                # ★ここでは set_active_revision() を呼ばない（あなたの方針でOK）
+                                st.session_state["active_rev_id"] = rid
+                                st.session_state["pending_apply_rev_id"] = rid
+
+                                st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
+                                st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
+
+                                st.rerun()
+
+                            else:
+                                st.warning("右（比較B）のRevisionが取得できません。")
+
+
 
                 # --- ここから下は既存の削除UIへ（あなたのコードをそのまま続けてOK） ---
 
@@ -5395,7 +5901,6 @@ with center:
                             st.error(msg)
 
 
-
         # =========================================================
         # TAB 3: アクティブRevision選択 + 企画内容レビュー（編集UI / PhaseB詳細化）
         # =========================================================
@@ -5431,33 +5936,60 @@ with center:
                 st.info("まだRevisionがありません。『生成・比較』タブで新規作成（KON〜SQ）を実行してください。")
                 st.stop()
             else:
+                # =========================================================
                 # active選択（編集・PPT反映に使うRevision）
-                rev_options = {r["label"]: r["rev_id"] for r in revs}
-                labels_list = list(rev_options.keys())
+                #   - selectboxの値は rev_id（内部キーを安定化）
+                #   - 表示は KON～SQ と同じ pivot_labels + (pivot_key)
+                # =========================================================
 
-                current_label = None
-                active = st.session_state.get("active_rev_id")
-                if active:
-                    for r in revs:
-                        if r.get("rev_id") == active:
-                            current_label = r.get("label")
-                            break
+                # KON～SQタブと同じ pivot 情報（無ければ空でOK）
+                pivot_labels = st.session_state.get("pivot_axis_labels", {}) or {}
 
-                rev_sig = "__".join([r.get("rev_id", "") for r in revs])  # 削除/追加で必ず変わる
+                # rev_id リスト＆参照辞書
+                rev_ids = [r.get("rev_id") for r in revs if r.get("rev_id")]
+                rev_by_id = {r.get("rev_id"): r for r in revs if r.get("rev_id")}
+
+                def _display_rev_name(rev_id: str) -> str:
+                    r = rev_by_id.get(rev_id, {}) or {}
+                    axis = (r.get("axis_source") or "").strip()
+
+                    # axis_source="pivot:<key>" の場合は KON～SQ と同表記
+                    if axis.startswith("pivot:"):
+                        pivot_key = axis.split("pivot:", 1)[1].strip()
+                        return f"{pivot_labels.get(pivot_key, pivot_key)} ({pivot_key})"
+
+                    # pivot由来でない場合は label にフォールバック
+                    return r.get("label") or rev_id
+
+                # 現在の active を index に反映（存在しなければ最後）
+                active_id = st.session_state.get("active_rev_id")
+                if active_id not in rev_ids:
+                    active_id = (rev_ids[-1] if rev_ids else None)
+
+                # selector key（revsの増減で変わる）
+                rev_sig = "__".join(rev_ids)  # rev_id だけでOK
                 selector_key = f"active_revision_selector__{rev_sig}"
 
-                selected_label = st.selectbox(
+                selected_rev_id = st.selectbox(
                     "編集・PPT反映に使うRevision（アクティブ）",
-                    options=labels_list,
-                    index=(labels_list.index(current_label) if current_label in rev_options else len(labels_list) - 1),
+                    options=rev_ids,
+                    index=(rev_ids.index(active_id) if active_id in rev_ids else len(rev_ids) - 1),
+                    format_func=_display_rev_name,
                     key=selector_key,
                 )
 
-                selected_rev_id = rev_options[selected_label]
-
                 if selected_rev_id != st.session_state.get("active_rev_id"):
                     set_active_revision(selected_rev_id)
+
+                    # ★必ず tabs より前の apply 処理に流す（ウィジェット生成前に同期するため）
+                    st.session_state["pending_apply_rev_id"] = selected_rev_id
+
+                    # ★切替直後の “毎回save” を1回だけ止める（巻き戻り防止）
+                    st.session_state["__skip_autosave_once"] = True
+
                     st.rerun()
+
+
 
 
             # =========================================================
@@ -5485,8 +6017,9 @@ with center:
             st.text_area("⑤ 問い", key="ai_問い", height=80)
             st.text_area("⑥ 仮説", key="ai_仮説", height=80)
 
-            if get_active_revision() is not None:
-                save_session_keys_to_active_revision()
+            # if get_active_revision() is not None:
+            #     save_session_keys_to_active_revision()
+            maybe_autosave_active_revision()
 
             st.markdown("---")
 
@@ -5494,6 +6027,10 @@ with center:
             # 2. 問いの分解（サブクエスチョン）
             # =========================================================
             st.markdown("### 2. 問いの分解（サブクエスチョン）")
+
+            import math
+            import re
+
             main_question_text = (st.session_state.get("ai_問い", "") or "").strip()
             subq_list = st.session_state.get("subq_list", []) or []
 
@@ -5502,7 +6039,6 @@ with center:
                     return []
                 lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
                 questions, buf = [], ""
-                import re
                 for line in lines:
                     m = re.match(r"^(?:\d+[\.\)]|Q\d+[:：])\s*(.+)", line)
                     if m:
@@ -5517,48 +6053,69 @@ with center:
 
             main_questions = split_main_questions(main_question_text)
 
-            lines = ["問い（メインクエスチョン）"]
+            # --- 1) 親（メインQ）を用意 ---
             if not main_questions:
-                lines.append("  ┗ （メインクエスチョンがまだ設定されていません）")
+                grouped = {"(メインクエスチョン未設定)": []}
             else:
-                for mq_idx, mq in enumerate(main_questions, 1):
-                    lines.append(f"  ┗ メインクエスチョン{mq_idx}：{mq}")
+                grouped = {mq: [] for mq in main_questions}
 
-            if subq_list:
-                grouped = {mq: [] for mq in (main_questions or ["(no main)"])}
-                for idx, sq in enumerate(subq_list):
-                    explicit_parent = sq.get("main") or sq.get("main_question")
-                    if explicit_parent and explicit_parent in grouped:
-                        grouped[explicit_parent].append(sq)
-                    else:
-                        mq = (main_questions[idx % len(main_questions)] if main_questions else "(no main)")
-                        grouped.setdefault(mq, []).append(sq)
+            # --- 2) subq を親へ紐付け ---
+            # 2-1) 明示的に main / main_question が入っていればそれを優先
+            remaining = []
+            for sq in subq_list:
+                d = dict(sq or {})
+                sq_txt = (d.get("subq") or d.get("question") or "").strip()
+                d["subq"] = sq_txt
+                d["question"] = sq_txt
 
-                lines = ["問い（メインクエスチョン）"]
-                for mq_idx, mq in enumerate(grouped.keys(), 1):
-                    lines.append(f"  ┗ メインクエスチョン{mq_idx}：{mq}")
-                    sqs = grouped.get(mq, [])
-                    if not sqs:
-                        lines.append("       ┗ （サブクエスチョン未設定）")
-                    else:
-                        for j, sq in enumerate(sqs, 1):
-                            lines.append(f"       ┗ SQ{j}: {sq.get('subq', '')}")
-                    lines.append("")
-            else:
-                lines.append("  ┗ （サブクエスチョンがまだ生成されていません）")
+                parent = (d.get("main") or d.get("main_question") or "").strip()
+                if parent and parent in grouped:
+                    grouped[parent].append(d)
+                else:
+                    remaining.append(d)
+
+            # 2-2) 明示親が無い分は「順序で“塊”割当」して構造化表示にする
+            # （例：メインQ3つ、SQ9つ → 3つずつ割当）
+            if remaining:
+                if main_questions:
+                    n_main = len(main_questions)
+                    chunk = max(1, math.ceil(len(remaining) / n_main))
+                    idx = 0
+                    for mq in main_questions:
+                        grouped[mq].extend(remaining[idx: idx + chunk])
+                        idx += chunk
+                        if idx >= len(remaining):
+                            break
+                else:
+                    grouped["(メインクエスチョン未設定)"].extend(remaining)
+
+            # --- 3) 表示テキスト（ツリー）を作成 ---
+            lines = []
+            lines.append("【問い（メインクエスチョン）→ サブクエスチョン（構造表示）】")
+            lines.append("")
+
+            for mq_idx, (mq, sqs) in enumerate(grouped.items(), 1):
+                lines.append(f"{mq_idx}. メインクエスチョン{mq_idx}：{mq}")
+                if not sqs:
+                    lines.append("    ┗ （サブクエスチョン未設定）")
+                else:
+                    for j, sq in enumerate(sqs, 1):
+                        lines.append(f"    ┗ {j}. サブクエスチョン{j}：{sq.get('subq','')}")
+                lines.append("")
 
             structured_text = "\n".join(lines).strip()
 
+            # ★重要：value= を使わず、key を唯一のソースにする（表示が古くなるのを防ぐ）
             active_id = st.session_state.get("active_rev_id") or "no_rev"
             subq_view_key = f"subq_structured_view__{active_id}"
 
+            st.session_state[subq_view_key] = structured_text  # 毎回上書き（表示用）
             st.text_area(
                 "サブクエスチョン一覧（構造化）",
-                value=structured_text,
-                height=260,
                 key=subq_view_key,
+                height=260,
+                disabled=True,
             )
-            st.session_state["subq_structured_view"] = st.session_state.get(subq_view_key, structured_text)
 
             st.markdown("---")
 
@@ -5567,80 +6124,81 @@ with center:
             # =========================================================
             st.markdown("### 3. 分析アプローチ")
 
+            active_id = st.session_state.get("active_rev_id") or "no_rev"
+
             colb1, colb2 = st.columns([1, 3], gap="small")
+
+            # rev_dbg = get_active_revision() or {}
+            # ss_sq1 = ((st.session_state.get("subq_list") or [{}])[0] or {}).get("subq")
+            # rev_sq1 = (((rev_dbg.get("subq_list") or [{}])[0]) or {}).get("subq")
+
+            # st.write("DEBUG ss subq_list[0].subq:", ss_sq1)
+            # st.write("DEBUG rev subq_list[0].subq:", rev_sq1)
+            # st.write("DEBUG ss ai_subquestions head:", (st.session_state.get("ai_subquestions") or "")[:80])
+            # st.write("DEBUG rev subquestions_raw head:", (rev_dbg.get("subquestions_raw") or "")[:80])
+
+
+
             with colb1:
-                if st.button("新規作成", use_container_width=True, key="btn_gen_analysis_phaseB"):
+                if st.button("新規作成", use_container_width=True, key=f"btn_gen_analysis_phaseB__{active_id}"):
                     with st.spinner("分析アプローチを生成しています..."):
-                        ok, msg = generate_analysis_approach_draft()  # ★あなたの関数
+                        ok, msg = generate_analysis_approach_draft()
 
                     if ok:
-                        st.session_state["__dbg_timeline"] = []
-                        st.session_state["__dbg_timeline"].append(
-                            ("after_gen", len(st.session_state.get("analysis_blocks", []) or []))
-                        )
-                        st.session_state["__dbg_timeline"].append(
-                            ("before_save_call", len(st.session_state.get("analysis_blocks", []) or []))
-                        )
-
+                        # 生成後、必ず保存（rev側にも確定）
                         if get_active_revision() is not None:
                             save_session_keys_to_active_revision()
-
-                        st.session_state["__dbg_timeline"].append(
-                            ("after_save_call", len(st.session_state.get("analysis_blocks", []) or []))
-                        )
-
-                        st.success("分析アプローチを生成しました（debug timeline記録）")
+                        st.success("分析アプローチを生成しました。")
                         st.rerun()
-
-
                     else:
                         st.error(msg or "分析アプローチ生成に失敗しました。")
 
             with colb2:
                 st.caption("生成・比較タブではKON〜SQまで。ここで選択したRevisionを詳細化します。")
 
-            # if "__dbg_gen_len" in st.session_state:
-            #     st.warning(
-            #         f"DEBUG: gen_len={st.session_state.get('__dbg_gen_len')} / "
-            #         f"active_id={st.session_state.get('__dbg_active_id')} / "
-            #         f"rev_id_after_save={st.session_state.get('__dbg_rev_id_after_save')} / "
-            #         f"rev_len_after_save={st.session_state.get('__dbg_rev_len_after_save')}"
-            #     )
-
-            # # ==== DEBUG 表示（分析アプローチ：表示側）====
-            # if st.session_state.get("__dbg_timeline"):
-            #     st.warning(f"DEBUG timeline: {st.session_state['__dbg_timeline']}")
-
-
             analysis_blocks = st.session_state.get("analysis_blocks", []) or []
-
-            dbg = st.session_state.get("__dbg_analysis_after_gen")
-            # if dbg:
-            #     st.warning(f"DEBUG(after_gen): len={dbg['len_analysis_blocks']} / active={dbg['active_rev_id']}")
-            #     st.code("\n".join(dbg["analysis_keys"]), language="text")
-
-
-
-
 
             if not analysis_blocks:
                 st.info("分析アプローチ案がまだありません。上のボタンで生成してください。")
-                
             else:
+                # ★revごとの widget key を使う（これが本丸）
                 for i, blk in enumerate(analysis_blocks, 1):
                     st.markdown(f"#### サブクエスチョン {i}")
-                    blk["subq"] = st.text_area("サブクエスチョン", value=blk.get("subq", ""), height=60, key=f"analysis_subq_{i}")
-                    blk["axis"] = st.text_area("分析軸（セグメント）", value=blk.get("axis", ""), height=60, key=f"analysis_axis_{i}")
-                    blk["items"] = st.text_area("評価項目", value=blk.get("items", ""), height=60, key=f"analysis_items_{i}")
-                    blk["approach"] = st.text_area("主な分析アプローチ", value=blk.get("approach", ""), height=80, key=f"analysis_approach_{i}")
-                    blk["hypothesis"] = st.text_area("検証する仮説", value=blk.get("hypothesis", ""), height=80, key=f"analysis_hypothesis_{i}")
+
+                    k_subq = f"analysis_subq_{i}__{active_id}"
+                    k_axis = f"analysis_axis_{i}__{active_id}"
+                    k_items = f"analysis_items_{i}__{active_id}"
+                    k_app  = f"analysis_approach_{i}__{active_id}"
+                    k_hypo = f"analysis_hypothesis_{i}__{active_id}"
+
+                    # 初回だけブロック値をUIへ注入（毎回上書きしない）
+                    if k_subq not in st.session_state: st.session_state[k_subq] = blk.get("subq", "") or ""
+                    if k_axis not in st.session_state: st.session_state[k_axis] = blk.get("axis", "") or ""
+                    if k_items not in st.session_state: st.session_state[k_items] = blk.get("items", "") or ""
+                    if k_app  not in st.session_state: st.session_state[k_app]  = blk.get("approach", "") or ""
+                    if k_hypo not in st.session_state: st.session_state[k_hypo] = blk.get("hypothesis", "") or ""
+
+                    # value=は使わない（keyのみ）
+                    st.text_area("サブクエスチョン", height=60, key=k_subq)
+                    st.text_area("分析軸（セグメント）", height=60, key=k_axis)
+                    st.text_area("評価項目", height=60, key=k_items)
+                    st.text_area("主な分析アプローチ", height=80, key=k_app)
+                    st.text_area("検証する仮説", height=80, key=k_hypo)
+
+                    # UI→analysis_blocksへ反映（このループ内で常に同期）
+                    blk["subq"] = st.session_state.get(k_subq, "") or ""
+                    blk["axis"] = st.session_state.get(k_axis, "") or ""
+                    blk["items"] = st.session_state.get(k_items, "") or ""
+                    blk["approach"] = st.session_state.get(k_app, "") or ""
+                    blk["hypothesis"] = st.session_state.get(k_hypo, "") or ""
+
                     st.markdown("---")
 
-                # st.session_state["analysis_blocks"] = analysis_blocks
-                # if get_active_revision() is not None:
-                #     save_session_keys_to_active_revision()
+                # ★最終的に session_state の analysis_blocks を更新して確定
+                st.session_state["analysis_blocks"] = analysis_blocks
 
-            st.markdown("---")
+
+
 
             # =========================================================
             # 4. 対象者条件（AI生成ボタンを追加）
@@ -5852,42 +6410,35 @@ with center:
 
                     st.session_state["survey_item_rows"] = master.to_dict(orient="records")
 
-                    if get_active_revision() is not None:
-                        save_session_keys_to_active_revision()
-
+                    # if get_active_revision() is not None:
+                    #     save_session_keys_to_active_revision()
+                    maybe_autosave_active_revision()
 
             # =========================================================
             # PPT反映＆一時保存（中央ペイン）
             # =========================================================
-            col_left, col_right = st.columns([1, 1], gap="small")
+            st.markdown("---")
+            st.markdown("### 保存（PPT + 調査項目Excel + JSON をZIPで出力）")
 
-            with col_left:
-                if st.button("PPTに保存", use_container_width=True, key="btn_apply_ppt_center"):
-                    try:
-                        out_path, report = run_step4_apply_current_ui_to_ppt(st.session_state)
-                        st.success(f"一括反映が完了しました：{out_path.name}（反映 {report['applied']}件）")
-                    except Exception as e:
-                        st.error(f"一括反映でエラーが発生しました: {e}")
+            if st.button("保存（ZIP出力を作成）", use_container_width=True, key="btn_build_zip"):
+                try:
+                    zip_bytes, zip_name = _make_output_zip_bytes(st.session_state)
+                    st.session_state["final_zip_bytes"] = zip_bytes
+                    st.session_state["final_zip_name"] = zip_name
+                    st.success("ZIPを作成しました。下のボタンからダウンロードできます。")
+                except Exception as e:
+                    st.error(f"保存用ZIPの作成に失敗しました: {e}")
 
-
-            with col_right:
-                proj = build_project_from_session()
-                proj_json_str = json.dumps(proj, ensure_ascii=False, indent=2)
-
+            if st.session_state.get("final_zip_bytes"):
                 st.download_button(
-                    "一時保存",
-                    data=proj_json_str.encode("utf-8"),
-                    file_name=(st.session_state.get("project_name") or "project") + ".json",
-                    mime="application/json",
+                    "ZIPをダウンロード",
+                    data=st.session_state["final_zip_bytes"],
+                    file_name=st.session_state.get("final_zip_name", "output.zip"),
+                    mime="application/zip",
                     use_container_width=True,
-                    key="btn_download_project_center",
+                    key="btn_download_zip",
                 )
 
-            col_dl, _sp2 = st.columns([1, 1], gap="small")
-            with col_dl:
-                render_ppt_download_button()
-
-            st.markdown("---")
 
 
     elif mode == "case_review":
