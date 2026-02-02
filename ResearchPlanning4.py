@@ -2723,6 +2723,9 @@ def _normalize_one_row(r: dict) -> dict | None:
     if not sq_id:
         return None
 
+    def _s(key):
+        return (r.get(key) or "").strip()
+
     pr = r.get("priority")
     try:
         pr = int(pr)
@@ -2730,22 +2733,24 @@ def _normalize_one_row(r: dict) -> dict | None:
         pr = 3
     pr = max(1, min(5, pr))
 
-    # まず out（返却するdict）を組み立てる
     out = {
         "sq_id": sq_id,
-        "sq_subq": (r.get("sq_subq") or "").strip(),
-        "items": (r.get("items") or "").strip(),
-        "approach": (r.get("approach") or "").strip(),
-        "var_name": (r.get("var_name") or "").strip(),
-        "item_text": (r.get("item_text") or "").strip(),
-        "recommended_type": (r.get("recommended_type") or "").strip(),
-        "recommended_scale": (r.get("recommended_scale") or "").strip(),
+        "sq_subq": _s("sq_subq"),
+        "item_text": _s("item_text"),
+        "question_text": _s("question_text"),
+        "options": _s("options"),          # ★追加：選択肢案（行ごと）
+        "items": _s("items"),              # ③の評価項目（SQ共通になりやすい）
+        "approach": _s("approach"),
+        "axis": _s("axis"),
+        "var_name": _s("var_name"),
+        "recommended_type": _s("recommended_type"),
+        "recommended_scale": _s("recommended_scale"),
         "priority": pr,
-        # 入力側に入っていれば受け取り、なければ空
-        "table_role": (r.get("table_role") or "").strip(),
+        "table_role": _s("table_role"),
+        "is_selected": r.get("is_selected", True),
     }
 
-    # table_role を保証（欠損・表記ゆれを吸収）
+    # table_role 正規化
     tr = str(out.get("table_role") or "").strip()
     if tr in ["表頭", "表側"]:
         out["table_role"] = tr
@@ -2754,29 +2759,43 @@ def _normalize_one_row(r: dict) -> dict | None:
     elif tr in ["col", "head", "表頭（列）", "表頭(列)"]:
         out["table_role"] = "表頭"
     else:
-        out["table_role"] = "表側"  # デフォルト
+        out["table_role"] = "表側"
+
+    # bool正規化
+    out["is_selected"] = True if str(out["is_selected"]).strip() in ["", "True", "true", "1", "yes", "Yes", "Y", "y"] else False
 
     return out
+
 
 
 def _dedupe_rows(rows: list[dict]) -> list[dict]:
     """
-    重複排除の最小実装：sq_id + var_name + item_text で重複判定。
-    var_name が空の場合は item_text をより重視。
+    重複排除：
+    - 原則：sq_id + var_name
+    - var_name が無い場合：sq_id + item_text + question_text
     """
     seen = set()
     out = []
+
     for r in rows:
-        key = (
-            (r.get("sq_id") or "").strip(),
-            (r.get("var_name") or "").strip().lower(),
-            (r.get("item_text") or "").strip(),
-        )
+        sq_id = (r.get("sq_id") or "").strip()
+        var_name = (r.get("var_name") or "").strip().lower()
+        item_text = (r.get("item_text") or "").strip()
+        question_text = (r.get("question_text") or "").strip()
+
+        if var_name:
+            key = (sq_id, "var", var_name)
+        else:
+            key = (sq_id, "text", item_text, question_text)
+
         if key in seen:
             continue
+
         seen.add(key)
         out.append(r)
+
     return out
+
 
 def _build_sq_prompt(
     *,
@@ -2789,15 +2808,9 @@ def _build_sq_prompt(
     sq_block: dict,
     per_sq_target: int,
 ) -> str:
-    # SQ単位に絞ることで出力安定＆打ち切り回避
     return f"""
 あなたは市場調査設計の専門家です。
 以下の「分析アプローチ（対象SQ）」に基づいて、調査票の“調査項目（変数）”を設計してください。
-
-【最優先の前提（フル生成の軸）】
-- 以下の「課題ピボット（軸）」に論点を必ず整合させてください。
-- items / approach / hypothesis を“測定可能な調査項目”に落としてください。
-- 調査項目は「分析で使える変数」になるように書いてください（抽象語で終わらない）。
 
 ▼軸情報（source: {axis_source}）
 {axis_text}
@@ -2819,17 +2832,20 @@ def _build_sq_prompt(
 
 【出力形式（厳守）】
 - 必ず JSON 配列 “だけ” を出力してください（余計な文章、コードブロック禁止）。
-- 1要素＝1調査項目（変数案）。
+- キーは必ずダブルクォートで囲むこと。末尾カンマ禁止。
+- 1要素＝1調査項目案（行）。
 - 各要素は以下キーを必須とします（空でもキーは出す）。
 
 [
   {{
     "sq_id": "{sq_block.get('id','')}",
     "sq_subq": "{sq_block.get('subq','')}",
+    "axis": "{sq_block.get('axis','')}",
     "items": "{sq_block.get('items','')}",
     "approach": "{sq_block.get('approach','')}",
-    "var_name": "",
     "item_text": "",
+    "question_text": "",
+    "options": "",
     "recommended_type": "SA/MA/尺度/数値/自由回答",
     "recommended_scale": "",
     "table_role": "表頭/表側",
@@ -2838,15 +2854,142 @@ def _build_sq_prompt(
 ]
 
 【生成ルール】
-- このSQについて {per_sq_target}±2 個の調査項目を提案してください。
-- priority は 1（最重要）〜5（補助）で付与してください。
-- item_text は1行で、全角60字以内目安。
-- sq_id / sq_subq / items / approach は上記の対象SQ情報を維持してください（勝手に別SQへ変更しない）。
-- table_role の定義：
-  表頭：属性・セグメント・分類軸（例：年代、利用有無、業種、頻度区分など）
-  表側：評価・態度・行動・量・スコア（例：満足、購入意向、理由、利用実態など）
-  必ず "表頭" または "表側" のどちらかを出力すること。
+- このSQについて {per_sq_target} 個の調査項目を提案してください。
+- item_text は“項目名（名詞句）”（例：ブランド認知、購入頻度、満足度）。
+- question_text は実際の設問文（丁寧語でOK）。
+- ★options は「この item_text に対応する選択肢案」を書くこと（項目ごとに変える）。
+  - SA/MAなら：具体的な選択肢の列挙（例：文房具/衣類/玩具…）
+  - 尺度なら：尺度定義（例：5段階尺度 1=あてはまる〜5=あてはまらない）
+  - 数値なら：単位・期間（例：直近1か月の購入回数）
+  - 自由回答は用いずSA/MAの選択肢に置き換えること
+- axis はクロス集計で使うセグメント（分類軸）のみ。方法論は書かないこと。
 """.strip()
+
+
+
+import re
+
+def _split_items_text(items_text: str) -> list[str]:
+    """
+    ③の評価項目（items）を行リストに分解する。
+    - 改行 / 箇条書き / 句読点区切りをゆるく吸収
+    """
+    if not items_text:
+        return []
+
+    t = str(items_text)
+
+    # まず改行で分割（箇条書きも想定）
+    parts = []
+    for line in t.splitlines():
+        line = line.strip()
+        line = re.sub(r"^[\-\*\u2022・\d\)\.]+\s*", "", line)  # "- ", "1) " など除去
+        if line:
+            parts.append(line)
+
+    # 改行が無い場合は "、" "・" "／" なども補助的に割る（やりすぎない）
+    if len(parts) <= 1:
+        parts = [p.strip() for p in re.split(r"[、,／/・\u2022]", t) if p.strip()]
+
+    # 最終クリーニング（短すぎ・重複を除外）
+    out = []
+    seen = set()
+    for p in parts:
+        p = p.strip()
+        if len(p) < 2:
+            continue
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def _covers_item(norm_rows: list[dict], item_name: str) -> bool:
+    """
+    ⑤の既存行が、③itemsの1要素をカバーしているか判定。
+    - item_text が一致/含む
+    - question_text が含む
+    - items（メタ）に含む
+    """
+    needle = (item_name or "").strip()
+    if not needle:
+        return True
+
+    n_low = needle.lower()
+
+    for r in norm_rows:
+        it = (r.get("item_text") or "").strip()
+        qt = (r.get("question_text") or "").strip()
+        meta = (r.get("items") or "").strip()
+
+        blob = f"{it}\n{qt}\n{meta}".lower()
+        if n_low in blob:
+            return True
+
+    return False
+
+
+import json
+import re
+from json import JSONDecodeError
+
+def _extract_json_array(text: str) -> str:
+    """
+    LLM出力から最初の JSON 配列 [...] を抜き出す。
+    余計な文章が混ざっても耐える。
+    """
+    if not text:
+        return "[]"
+    # まず ``` を剥がす（あなたの _strip_json_fence があるなら併用でOK）
+    t = text.strip()
+
+    # 最初の '[' と最後の ']' で配列を抽出（雑にでも強い）
+    start = t.find("[")
+    end = t.rfind("]")
+    if start == -1 or end == -1 or end <= start:
+        return "[]"
+    return t[start:end+1]
+
+
+def _try_fix_common_json_issues(s: str) -> str:
+    """
+    よくある壊れ方の軽い修復：
+    - スマートクォート → 普通のクォート
+    - 末尾カンマの除去
+    """
+    if not s:
+        return s
+
+    # スマートクォート対策
+    s = s.replace("“", "\"").replace("”", "\"").replace("’", "'").replace("‘", "'")
+
+    # 末尾カンマ除去: { ... , } や [ ... , ]
+    s = re.sub(r",\s*}", "}", s)
+    s = re.sub(r",\s*]", "]", s)
+
+    return s
+
+
+def _safe_load_json_array(ai_text: str) -> list:
+    """
+    JSON配列としてロード。ダメなら抽出→軽修復→再トライ。
+    """
+    raw = (ai_text or "").strip()
+    raw = _extract_json_array(raw)
+    raw = _try_fix_common_json_issues(raw)
+
+    try:
+        obj = json.loads(raw)
+    except JSONDecodeError as e:
+        # ここでさらに詳細を出したい場合は raw をログに残す
+        raise ValueError(f"AIのJSONが壊れています: {e}")
+
+    if not isinstance(obj, list):
+        raise ValueError("JSON配列ではありません。")
+    return obj
+
 
 def _generate_items_for_one_sq(
     *,
@@ -2885,35 +3028,68 @@ def _generate_items_for_one_sq(
     )
 
     ai_text = _strip_json_fence((response.choices[0].message.content or "").strip())
-    rows = json.loads(ai_text)
+    rows = _safe_load_json_array(ai_text)
+
     if not isinstance(rows, list):
         raise ValueError("JSON配列ではありません。")
 
-    norm_rows = []
+    norm_rows: list[dict] = []
     for r in rows:
         nr = _normalize_one_row(r)
         if not nr:
             continue
 
-        # 念のため：sq_id を対象SQに寄せる（モデル揺れ対策）
+        # 念のため：sq_id / subq / axis / items を対象SQへ寄せる
         nr["sq_id"] = (sq_block.get("id") or nr["sq_id"]).strip()
-        nr["sq_subq"] = nr["sq_subq"] or (sq_block.get("subq") or "").strip()
-        nr["items"] = nr["items"] or (sq_block.get("items") or "").strip()
-        nr["approach"] = nr["approach"] or (sq_block.get("approach") or "").strip()
+        nr["sq_subq"] = nr.get("sq_subq") or (sq_block.get("subq") or "").strip()
+        nr["axis"] = (sq_block.get("axis") or nr.get("axis") or "").strip()
 
-        if not nr["item_text"]:
+        # ★itemsは「メタ」なので常に③を優先して統一（空補完ではなく上書き寄りにする）
+        base_items_text = (sq_block.get("items") or "").strip()
+        if base_items_text:
+            nr["items"] = base_items_text
+        else:
+            nr["items"] = (nr.get("items") or "").strip()
+
+        if not (nr.get("item_text") or "").strip():
             continue
 
         norm_rows.append(nr)
 
+    # =========================================================
+    # ★ここが本丸：③の評価項目（items）を必ず⑤の行として含める
+    #   - ⑤の複数案は維持（減らさない）
+    #   - 足りない分だけ「補助行」を追加する
+    # =========================================================
+    base_items_text = (sq_block.get("items") or "").strip()
+    must_items = _split_items_text(base_items_text)
+
+    if must_items:
+        for item_name in must_items:
+            if _covers_item(norm_rows, item_name):
+                continue
+
+            # 追加行（最低限）
+            norm_rows.insert(0, {
+                "sq_id": (sq_block.get("id") or "").strip(),
+                "sq_subq": (sq_block.get("subq") or "").strip(),
+                "axis": (sq_block.get("axis") or "").strip(),
+                "items": base_items_text,  # ③のitems全文を保持
+                "approach": (sq_block.get("approach") or "").strip(),
+
+                # ★評価項目そのものを「項目名」として強制追加
+                "item_text": item_name,
+                "question_text": "",
+
+                "var_name": "",
+                "recommended_type": "",
+                "recommended_scale": "",
+                "table_role": "表側",
+                "priority": 1,
+                "is_selected": True,
+            })
+
     return norm_rows
-
-
-
-
-
-
-
 
 
 
@@ -3586,7 +3762,6 @@ def ensure_survey_items_cached(session_state: dict) -> dict:
 
 import json
 from datetime import datetime
-
 def build_ppt_update_payload(session_state: dict) -> dict:
     """
     Streamlitの session_state（＝UIのTXT入力結果）から、
@@ -3626,29 +3801,53 @@ def build_ppt_update_payload(session_state: dict) -> dict:
             } if source_key else {"type": "computed"})
         })
 
+    def _get_str(key: str, default: str = "") -> str:
+        v = session_state.get(key, default)
+        if v is None:
+            return default
+        return str(v)
+
+    # ------------------------------------------------------------
+    # ★分析アプローチ用：rev_id付きキーを優先して読む（後方互換あり）
+    # ------------------------------------------------------------
+    active_id = (session_state.get("active_rev_id") or "no_rev")
+
+    def _get_analysis_field(i: int, field: str) -> str:
+        """
+        新仕様（rev_id付き）: analysis_{field}_{i}__{active_id}
+        旧仕様（rev_idなし）: analysis_{field}_{i}
+        """
+        k_new = f"analysis_{field}_{i}__{active_id}"
+        v = session_state.get(k_new, None)
+        if v is not None and str(v).strip() != "":
+            return str(v)
+
+        k_old = f"analysis_{field}_{i}"
+        v2 = session_state.get(k_old, "")
+        return str(v2) if v2 is not None else ""
+
     items: list[dict] = []
 
     # ------------------------------------------------------------
     # スライド1（表紙）: slide_index=0
     # ------------------------------------------------------------
-    add_item(items, 0, "Edit_client", session_state.get("Edit_client", ""), "Edit_client")
-    add_item(items, 0, "Edit_title",  session_state.get("Edit_title",  ""), "Edit_title")
-    add_item(items, 0, "Edit_date",   session_state.get("Edit_date",   ""), "Edit_date")
+    add_item(items, 0, "Edit_client", _get_str("Edit_client", ""), "Edit_client")
+    add_item(items, 0, "Edit_title",  _get_str("Edit_title",  ""), "Edit_title")
+    add_item(items, 0, "Edit_date",   _get_str("Edit_date",   ""), "Edit_date")
 
     # ------------------------------------------------------------
     # スライド2（キックオフノート）: slide_index=1
     # ------------------------------------------------------------
     kickoff_map = {
-        "EDIT_TO_BE":     "ai_目標",
-        "EDIT_AS_IS":     "ai_現状",
-        "EDIT_PROBLEM":   "ai_ビジネス課題",
-        "EDIT_PURPOSE":   "ai_調査目的",
-        "EDIT_QUESTION":  "ai_問い",
-        "EDIT_HYPOTHESIS":"ai_仮説",
+        "EDIT_TO_BE":      "ai_目標",
+        "EDIT_AS_IS":      "ai_現状",
+        "EDIT_PROBLEM":    "ai_ビジネス課題",
+        "EDIT_PURPOSE":    "ai_調査目的",
+        "EDIT_QUESTION":   "ai_問い",
+        "EDIT_HYPOTHESIS": "ai_仮説",
     }
     for shape, key in kickoff_map.items():
-        add_item(items, 1, shape, session_state.get(key, ""), key)
-
+        add_item(items, 1, shape, _get_str(key, ""), key)
 
     # ------------------------------------------------------------
     # スライド3（問いの分解ツリー）: slide_index=2
@@ -3657,7 +3856,6 @@ def build_ppt_update_payload(session_state: dict) -> dict:
     tree_text = ensure_question_tree_cached(session_state)
     add_item(items, 2, "EDIT1_subQ", tree_text, "EDIT1_subQ")
 
-
     # ------------------------------------------------------------
     # 対象者条件（旧：スライド4）: slide_index=12
     # shape: EDIT1_taisyosya
@@ -3665,21 +3863,20 @@ def build_ppt_update_payload(session_state: dict) -> dict:
     target_text = ensure_target_condition_cached(session_state)
     add_item(items, 12, "EDIT1_taisyosya", target_text, "ai_target_condition")
 
-
-
     # ------------------------------------------------------------
     # スライド4-12（分析アプローチ）：slide_index=3..11（最大9件 = i=1..9）
     # shape: EDIT1_subQ{i}_1..5
-    # 値：session_state["analysis_*_{i}"] から取得
+    # 値：analysis_*_{i}__{active_id}（新）→ analysis_*_{i}（旧）の順で取得
     # ------------------------------------------------------------
     MAX_I = 9
     for i in range(1, MAX_I + 1):
         slide_index = 3 + (i - 1)  # 3..11
-        add_item(items, slide_index, f"EDIT1_subQ{i}_1", session_state.get(f"analysis_subq_{i}", ""), f"analysis_subq_{i}")
-        add_item(items, slide_index, f"EDIT1_subQ{i}_2", session_state.get(f"analysis_axis_{i}", ""), f"analysis_axis_{i}")
-        add_item(items, slide_index, f"EDIT1_subQ{i}_3", session_state.get(f"analysis_items_{i}", ""), f"analysis_items_{i}")
-        add_item(items, slide_index, f"EDIT1_subQ{i}_4", session_state.get(f"analysis_approach_{i}", ""), f"analysis_approach_{i}")
-        add_item(items, slide_index, f"EDIT1_subQ{i}_5", session_state.get(f"analysis_hypothesis_{i}", ""), f"analysis_hypothesis_{i}")
+
+        add_item(items, slide_index, f"EDIT1_subQ{i}_1", _get_analysis_field(i, "subq"),       f"analysis_subq_{i}__{active_id}")
+        add_item(items, slide_index, f"EDIT1_subQ{i}_2", _get_analysis_field(i, "axis"),       f"analysis_axis_{i}__{active_id}")
+        add_item(items, slide_index, f"EDIT1_subQ{i}_3", _get_analysis_field(i, "items"),      f"analysis_items_{i}__{active_id}")
+        add_item(items, slide_index, f"EDIT1_subQ{i}_4", _get_analysis_field(i, "approach"),   f"analysis_approach_{i}__{active_id}")
+        add_item(items, slide_index, f"EDIT1_subQ{i}_5", _get_analysis_field(i, "hypothesis"), f"analysis_hypothesis_{i}__{active_id}")
 
     # ------------------------------------------------------------
     # 調査項目案（10/20/30/40）: slide_index=13
@@ -3696,9 +3893,6 @@ def build_ppt_update_payload(session_state: dict) -> dict:
     add_item(items, 13, "EDIT3_Qimg", survey_map.get("30問", ""), "survey_items_30問")
     add_item(items, 13, "EDIT4_Qimg", survey_map.get("40問", ""), "survey_items_40問")
 
-
-
-
     # ------------------------------------------------------------
     # スライド14（調査仕様案）: slide_index=14
     # SPEC_ITEMS / SPEC_LABEL_TO_SHAPE は既存コードの定義を利用する前提
@@ -3707,7 +3901,7 @@ def build_ppt_update_payload(session_state: dict) -> dict:
         for label, ss_key in SPEC_ITEMS:
             shape_name = SPEC_LABEL_TO_SHAPE.get(label)
             if shape_name:
-                add_item(items, 14, shape_name, session_state.get(ss_key, ""), ss_key)
+                add_item(items, 14, shape_name, _get_str(ss_key, ""), ss_key)
     except NameError:
         # まだSPEC_ITEMS等を読み込んでいない場合は何もしない
         pass
@@ -3719,7 +3913,7 @@ def build_ppt_update_payload(session_state: dict) -> dict:
     # ------------------------------------------------------------
     for idx in range(1, 6):
         key = f"estimate_summary{idx}"
-        add_item(items, 16, f"EDIT_amount{idx}", session_state.get(key, ""), key)
+        add_item(items, 16, f"EDIT_amount{idx}", _get_str(key, ""), key)
 
     payload = {
         "meta": {
@@ -3731,6 +3925,7 @@ def build_ppt_update_payload(session_state: dict) -> dict:
         "items": items
     }
     return payload
+
 
 
 def payload_to_pretty_json(payload: dict) -> str:
@@ -4503,39 +4698,42 @@ import pandas as pd
 import streamlit as st
 
 
+
 def _make_survey_items_excel_bytes(session_state) -> bytes:
     rows = session_state.get("survey_item_rows", []) or []
     df = pd.DataFrame(rows)
 
-    # 期待列が無いケースに備えて最低限の列を用意（あなたの列設計に寄せる）
-    base_cols = [
-        "sq_id", "sq_subq", "items", "approach",
-        "var_name", "item_text", "recommended_type", "recommended_scale",
-        "priority", "table_role", "is_selected"
+    # 5列だけ（内部キー → 日本語見出し）
+    UI_COLS = [
+        ("sq_id", "SQ_ID"),
+        ("sq_subq", "サブクエスチョン文"),
+        ("item_text", "調査項目"),
+        ("options", "選択肢案"),
+        ("axis", "分析軸"),
     ]
-    for c in base_cols:
-        if c not in df.columns:
-            df[c] = ""
 
-    # bool正規化
-    if "is_selected" in df.columns:
-        df["is_selected"] = df["is_selected"].apply(
-            lambda x: True if str(x).strip() in ["", "True", "true", "1", "yes", "Yes", "Y", "y"] else False
-        )
+    # 必要列を保証（過去互換）
+    for k, _ in UI_COLS:
+        if k not in df.columns:
+            df[k] = ""
+
+    # 互換：options が空なら items を使う（過去データ救済）
+    if "items" not in df.columns:
+        df["items"] = ""
+    df["options"] = df.apply(
+        lambda r: (str(r.get("options") or "").strip() or str(r.get("items") or "").strip()),
+        axis=1
+    )
+
+    # 5列だけに絞って日本語見出しへ
+    df_out = df[[k for k, _ in UI_COLS]].rename(columns={k: label for k, label in UI_COLS})
 
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        df.to_excel(writer, sheet_name="all_items", index=False)
-
-        sel = df[df["is_selected"] == True].copy()
-        sel.to_excel(writer, sheet_name="selected_only", index=False)
-
-        # SQ別（見やすさ用）
-        if "sq_id" in df.columns:
-            df_sorted = df.sort_values(["sq_id", "priority"], ascending=[True, True])
-            df_sorted.to_excel(writer, sheet_name="by_sq", index=False)
+        df_out.to_excel(writer, sheet_name="all_items", index=False)
 
     return out.getvalue()
+
 
 
 def _make_project_json_bytes(session_state) -> bytes:
@@ -4656,27 +4854,30 @@ with left:
 
     st.divider()
 
-    # 保存済みプロジェクトの読み込み
-    uploaded_proj = st.file_uploader(
-        "保存済みファイル読み込み",
-        type=["json"],
-        key="project_json_upload",
-    )
 
-    if uploaded_proj is not None:
-        if st.button("このプロジェクトを読み込んで再編集を開始", use_container_width=True):
-            try:
-                raw = uploaded_proj.getvalue()  # read() ではなく getvalue()
-                proj_loaded = json.loads(raw.decode("utf-8-sig"))
+    # # 保存済みプロジェクトの読み込み
+    # uploaded_proj = st.file_uploader(
+    #     "保存済みファイル読み込み",
+    #     type=["json"],
+    #     key="project_json_upload",
+    # )
 
-                # ここでは apply せず、「予約」だけして rerun
-                st.session_state["pending_project"] = proj_loaded
-                st.rerun()
+    # if uploaded_proj is not None:
+    #     if st.button("このプロジェクトを読み込んで再編集を開始", use_container_width=True):
+    #         try:
+    #             raw = uploaded_proj.getvalue()  # read() ではなく getvalue()
+    #             proj_loaded = json.loads(raw.decode("utf-8-sig"))
 
-            except Exception as e:
-                st.error(f"プロジェクト読み込み中にエラーが発生しました: {e}")
-   
-    # # PPTテンプレートアップロード（セッション専用ディレクトリに保存）
+    #             # ここでは apply せず、「予約」だけして rerun
+    #             st.session_state["pending_project"] = proj_loaded
+    #             st.rerun()
+
+    #         except Exception as e:
+    #             st.error(f"プロジェクト読み込み中にエラーが発生しました: {e}")
+
+
+    #=========================================Azure に載せるときはコメントアウト=========================================
+    # PPTテンプレートアップロード（セッション専用ディレクトリに保存）
     # uploaded_pptx = st.file_uploader(
     #     "企画書テンプレートをアップロードしてください（PPTX）",
     #     type=["pptx"],
@@ -4712,6 +4913,7 @@ with left:
 
     #         st.success(f"{uploaded_pptx.name} を読み込みました（保存先: {target}）。")
 
+    #=========================================Azure に載せるときはコメントアウト=========================================
     # 過去企画のアップロード（セッション専用ディレクトリに保存）
     # df = render_case_db_uploader_sidebar()
     # sig = st.session_state.get("case_db_upload_sig")
@@ -4744,8 +4946,7 @@ with center:
             "- 調査項目案\n\n\n"
             "次の手順で進めていこう！\n"
             "1) 左の「オリエン内容の整理」で資料をアップロード\n"
-            "2) 内容を確認したら「企画書下書き」へ進んでください。\n"
-            "3) 企画を一時保存してある場合は「保存済みファイル読み込み」から再開できます。\n",
+            "2) 内容を確認したら「企画書下書き」へ進んでください。\n",
             img_width=300,
             kind="info",
         )
@@ -5313,8 +5514,7 @@ with center:
             render_character_guide3(
                 "KON〜SQ",
                 "- キックオフノートからサブクエスチョンまでを生成して考察・比較するステップだよ。\n"
-                "- ポイントは顧客課題を決めつけないこと。\n"
-                "- はじめに中心となる課題を選んで「新規作成」を押してください。\n"
+                "- はじめに課題ピボットで作った中心となる課題を選んで「新規作成」を押してください。\n"
                 "- 中心となる課題を変えて「新規作成」を押すと、別なKON～SQが生成されるよ。\n"
                 "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。",
                 img_width=500,
@@ -5685,7 +5885,7 @@ with center:
                         with st.expander("SQの編集（左）", expanded=False):
                             _render_subq_block_editable(left_rev, "左（比較A）", "cmp_left")
 
-                            if st.button("左のSQを保存", use_container_width=True, key="btn_save_left_sq"):
+                            if st.button("SQ変更を保存", use_container_width=True, key="btn_save_left_sq"):
                                 if left_rev and left_rev.get("rev_id"):
                                     rev_id = left_rev["rev_id"]
 
@@ -5741,7 +5941,7 @@ with center:
                         with st.expander("SQの編集（右）", expanded=False):
                             _render_subq_block_editable(right_rev, "右（比較B）", "cmp_right")
 
-                            if st.button("右のSQを保存", use_container_width=True, key="btn_save_right_sq"):
+                            if st.button("SQ変更を保存", use_container_width=True, key="btn_save_right_sq"):
                                 if right_rev and right_rev.get("rev_id"):
                                     rev_id = right_rev["rev_id"]
 
@@ -5800,7 +6000,7 @@ with center:
                     col_apply_l, col_apply_r = st.columns(2, gap="small")
 
                     with col_apply_l:
-                        if st.button("左（比較A）を採用して反映", use_container_width=True, key="btn_apply_left_to_active"):
+                        if st.button("変更を保存", use_container_width=True, key="btn_apply_left_to_active"):
                             if left_rev and left_rev.get("rev_id"):
                                 rid = left_rev["rev_id"]
 
@@ -5848,7 +6048,7 @@ with center:
                                 st.warning("左（比較A）のRevisionが取得できません。")
 
                     with col_apply_r:
-                        if st.button("（比較B）を採用して反映", use_container_width=True, key="btn_apply_right_to_active"):
+                        if st.button("変更を保存", use_container_width=True, key="btn_apply_right_to_active"):
                             if right_rev and right_rev.get("rev_id"):
                                 rid = right_rev["rev_id"]
 
@@ -5902,43 +6102,43 @@ with center:
                 # =========================================================
                 # Revision 削除 UI（生成・比較タブ）
                 # =========================================================
-                st.markdown("---")
-                st.markdown("### Revisionの削除")
+                # st.markdown("---")
+                # st.markdown("### Revisionの削除")
 
-                # default は削除不可にする
-                deletable_revs = [r for r in revs if r.get("stage") != "default"]
+                # # default は削除不可にする
+                # deletable_revs = [r for r in revs if r.get("stage") != "default"]
 
-                if not deletable_revs:
-                    st.caption("削除可能なRevisionはありません。")
-                else:
-                    del_options = {r["label"]: r["rev_id"] for r in deletable_revs}
-                    del_labels = list(del_options.keys())
+                # if not deletable_revs:
+                #     st.caption("削除可能なRevisionはありません。")
+                # else:
+                #     del_options = {r["label"]: r["rev_id"] for r in deletable_revs}
+                #     del_labels = list(del_options.keys())
 
-                    del_label = st.selectbox(
-                        "削除するRevisionを選択",
-                        options=del_labels,
-                        key="delete_revision_label",
-                    )
-                    del_rev_id = del_options[del_label]
+                #     del_label = st.selectbox(
+                #         "削除するRevisionを選択",
+                #         options=del_labels,
+                #         key="delete_revision_label",
+                #     )
+                #     del_rev_id = del_options[del_label]
 
-                    st.warning("この操作は元に戻せません。")
+                #     st.warning("この操作は元に戻せません。")
 
-                    confirm = st.checkbox(
-                        "本当にこのRevisionを削除する",
-                        key="delete_revision_confirm",
-                    )
+                #     confirm = st.checkbox(
+                #         "本当にこのRevisionを削除する",
+                #         key="delete_revision_confirm",
+                #     )
 
-                    if st.button(
-                        "選択したRevisionを削除",
-                        use_container_width=True,
-                        disabled=not confirm,
-                    ):
-                        ok, msg = delete_revision(del_rev_id)
-                        if ok:
-                            st.success("Revisionを削除しました。")
-                            st.rerun()
-                        else:
-                            st.error(msg)
+                #     if st.button(
+                #         "選択したRevisionを削除",
+                #         use_container_width=True,
+                #         disabled=not confirm,
+                #     ):
+                #         ok, msg = delete_revision(del_rev_id)
+                #         if ok:
+                #             st.success("Revisionを削除しました。")
+                #             st.rerun()
+                #         else:
+                #             st.error(msg)
 
 
         # =========================================================
@@ -6237,6 +6437,9 @@ with center:
                 # ★最終的に session_state の analysis_blocks を更新して確定
                 st.session_state["analysis_blocks"] = analysis_blocks
 
+                # 追加：ここで確実に active revision に保存
+                if get_active_revision() is not None:
+                    save_session_keys_to_active_revision()
 
 
 
@@ -6354,105 +6557,113 @@ with center:
 
                     df = pd.DataFrame(rows)
 
-                    base_cols = [
-                        "sq_id", "sq_subq", "items", "approach",
-                        "var_name", "item_text", "recommended_type", "recommended_scale",
-                        "priority", "table_role", "is_selected"
-                    ]
-                    for c in base_cols:
-                        if c not in df.columns:
-                            df[c] = ""
 
-                    df["is_selected"] = df["is_selected"].apply(
-                        lambda x: True if str(x).strip() in ["", "True", "true", "1", "yes", "Yes", "Y", "y"] else False
+                    import pandas as pd
+                    import uuid
+
+                    # =========================================================
+                    # ★UI表示を 5列固定（内部キー → 日本語見出し）
+                    # =========================================================
+                    UI_COLS = [
+                        ("sq_id", "SQ_ID"),
+                        ("sq_subq", "サブクエスチョン文"),
+                        ("item_text", "調査項目"),
+                        ("options", "選択肢案"),
+                        ("axis", "分析軸"),
+                    ]
+                    ui_keys = [k for k, _ in UI_COLS]
+                    ui_rename = {k: label for k, label in UI_COLS}
+                    rename_back = {label: k for k, label in UI_COLS}
+
+                    df = pd.DataFrame(rows)
+
+                    # --- 内部用の固定ID（行の同一性）を保証 ---
+                    if "row_id" not in df.columns:
+                        df["row_id"] = ""
+
+                    def _new_row_id():
+                        return uuid.uuid4().hex[:12]
+
+                    df["row_id"] = df["row_id"].apply(lambda x: (str(x).strip() or _new_row_id()))
+
+                    # --- 必須列を保証 ---
+                    for k in ui_keys:
+                        if k not in df.columns:
+                            df[k] = ""
+
+                    # --- 互換：options が無い/空なら items を表示用に使う（過去データ救済） ---
+                    df["options"] = df.apply(
+                        lambda r: (str(r.get("options") or "").strip() or str(r.get("items") or "").strip()),
+                        axis=1
                     )
 
                     st.markdown("#### 分析アプローチ（表頭） × 調査項目（行）")
 
-                    edit_cols = ["is_selected", "sq_id", "item_text", "recommended_type", "recommended_scale", "table_role"]
+                    # 5列固定のため「採用/全件」などは一旦固定
+                    st.caption("（表示は5列固定。採用フラグ等は内部保持のままUIには出しません）")
 
-                    colm1, colm2, colm3 = st.columns([1, 1, 2], gap="small")
-                    with colm1:
-                        view_mode = st.radio(
-                            "表示",
-                            options=["採用のみ", "全件"],
-                            horizontal=True,
-                            index=0,
-                            key=f"survey_item_view_mode__{st.session_state.get('active_rev_id','no_rev')}",
-                        )
-                    with colm2:
-                        if st.button("採用のみを別途出力（保存）", use_container_width=True, key="btn_export_selected_items"):
-                            selected_df = df[df["is_selected"] == True].copy()
-                            st.session_state["survey_item_rows_selected"] = selected_df.to_dict(orient="records")
-                            if get_active_revision() is not None:
-                                save_session_keys_to_active_revision()
-                            st.success(f"採用のみを保存しました（{len(selected_df)}件）。")
-                    with colm3:
-                        st.caption("採用=チェックあり。まず全件生成→不要を外す運用を推奨します。")
+                    # UIに出すのは5列のみ（見出しを日本語に）
+                    editor_df = df[ui_keys].rename(columns=ui_rename).copy()
 
-                    display_df = df[df["is_selected"] == True].copy() if view_mode == "採用のみ" else df.copy()
-                    editor_df = display_df[edit_cols].copy()
-
-                    edited = st.data_editor(
+                    edited_ui = st.data_editor(
                         editor_df,
                         hide_index=True,
                         num_rows="dynamic",
                         use_container_width=True,
                         column_config={
-                            "is_selected": st.column_config.CheckboxColumn("採用", help="チェックあり＝採用（出力対象）"),
-                            "sq_id": st.column_config.TextColumn("sq_id", disabled=True),
-                            "item_text": st.column_config.TextColumn("調査項目", width="large"),
-                            "recommended_type": st.column_config.SelectboxColumn(
-                                "形式",
-                                options=["SA", "MA", "尺度", "数値", "自由回答"],
-                                help="推奨設問形式",
-                            ),
-                            "recommended_scale": st.column_config.TextColumn(
-                                "尺度（必要なら）",
-                                help="例：5件法（1=不満〜5=満足）など。SA/MA/自由回答なら空でOK",
-                            ),
-                            "table_role": st.column_config.SelectboxColumn(
-                                "表頭/表側",
-                                options=["表頭", "表側"],
-                                help="表頭=分類軸（属性・セグメント）、表側=評価/行動など測る項目",
-                            ),
+                            "SQ_ID": st.column_config.TextColumn("SQ_ID", disabled=True),
+                            "サブクエスチョン文": st.column_config.TextColumn("サブクエスチョン文", width="large"),
+                            "調査項目": st.column_config.TextColumn("調査項目", width="large"),
+                            "選択肢案": st.column_config.TextColumn("選択肢案", width="large"),
+                            "分析軸": st.column_config.TextColumn("分析軸", width="large"),
                         },
                         key=f"survey_item_rows_editor__{st.session_state.get('active_rev_id','no_rev')}",
                     )
 
-                    master = df[base_cols].copy()
+                    # =========================================================
+                    # ★UI編集結果（日本語見出し）→ 内部キーへ戻して master に上書き
+                    # =========================================================
+                    edited = edited_ui.rename(columns=rename_back).copy()
 
-                    def _row_key(d):
-                        return (str(d.get("sq_id", "")).strip(), str(d.get("item_text", "")).strip())
+                    # master は元dfを維持（row_id含む・他列も壊さない）
+                    master = df.copy()
 
-                    master_map = {_row_key(r): i for i, r in master.iterrows()}
-                    apply_cols = ["is_selected", "recommended_type", "recommended_scale", "table_role", "item_text"]
+                    # row_idベースで突合（item_textを編集しても同じ行を更新できる）
+                    # ※UIにはrow_idを出していないので、順序ベースで対応させる
+                    #   -> data_editorは行順を保持する前提。並べ替え機能を入れるならrow_id列を隠し表示する必要あり。
+                    if len(edited) == len(master):
+                        for i in range(len(master)):
+                            for col in ui_keys:
+                                master.at[i, col] = edited.iloc[i].get(col, master.at[i, col])
+                    else:
+                        # 行数が変わった場合（ユーザーが行追加/削除）
+                        # 既存行は先頭から更新し、追加分は row_id 新規で追加する
+                        min_n = min(len(edited), len(master))
+                        for i in range(min_n):
+                            for col in ui_keys:
+                                master.at[i, col] = edited.iloc[i].get(col, master.at[i, col])
 
-                    for _, r in edited.iterrows():
-                        k = _row_key(r)
-                        if k in master_map:
-                            i = master_map[k]
-                            for c in apply_cols:
-                                master.at[i, c] = r.get(c, master.at[i, c])
-                        else:
-                            new_row = {c: "" for c in base_cols}
-                            for c in apply_cols:
-                                new_row[c] = r.get(c, "")
-                            new_row["sq_id"] = r.get("sq_id", "")
-                            new_row["priority"] = 3
-                            new_row["is_selected"] = bool(r.get("is_selected", True))
-                            master = pd.concat([master, pd.DataFrame([new_row])], ignore_index=True)
+                        if len(edited) > len(master):
+                            for j in range(len(master), len(edited)):
+                                new_row = {c: "" for c in master.columns}
+                                new_row["row_id"] = _new_row_id()
+                                for col in ui_keys:
+                                    new_row[col] = edited.iloc[j].get(col, "")
+                                # 内部列はデフォルト補完（存在する場合のみ）
+                                if "priority" in master.columns:
+                                    new_row["priority"] = 3
+                                if "table_role" in master.columns:
+                                    new_row["table_role"] = "表側"
+                                if "is_selected" in master.columns:
+                                    new_row["is_selected"] = True
+                                master = pd.concat([master, pd.DataFrame([new_row])], ignore_index=True)
 
-                    master["is_selected"] = master["is_selected"].apply(
-                        lambda x: True if str(x).strip() in ["True", "true", "1", "yes", "Yes", "Y", "y"] else False
-                    )
-                    master["priority"] = pd.to_numeric(master["priority"], errors="coerce").fillna(3).astype(int).clip(1, 5)
+                        if len(edited) < len(master):
+                            master = master.iloc[:len(edited)].copy()
 
                     st.session_state["survey_item_rows"] = master.to_dict(orient="records")
-
-                    # if get_active_revision() is not None:
-                    #     save_session_keys_to_active_revision()
                     maybe_autosave_active_revision()
+
 
             # =========================================================
             # PPT反映＆一時保存（中央ペイン）
