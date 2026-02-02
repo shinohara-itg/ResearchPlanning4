@@ -4591,8 +4591,8 @@ def ensure_pptx_path() -> bool:
         return True
 
     conn_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING", "")
-    container = os.getenv("PPTX_TEMPLATE_CONTAINER", "")
-    blob_name = os.getenv("PPTX_TEMPLATE_BLOB_NAME", "")  # 例: templates/template.pptx
+    container = os.getenv("TEMPLATE_CONTAINER", "")
+    blob_name = os.getenv("PTEMPLATE_BLOB_NAME", "")  # 例: templates/template.pptx
 
     if not conn_str or not container or not blob_name:
         return False
@@ -4735,7 +4735,7 @@ with center:
     # ★初回アクセス時だけガイド表示（初動の心理的壁を下げる）
     if "__ui_first_visit" not in st.session_state:
         render_character_guide(
-            "みなの知恵へ、ようこそ！",
+            "みんなの知恵へ、ようこそ！",
             "現在このツールでは企画書作成をサポートしているよ。作成できる企画書のスライドは以下です。\n"
             "- キックオフノート（KON）\n"
             "- サブクエスチョン（SQ）\n"
@@ -5058,9 +5058,13 @@ with center:
 
         ensure_revision_store()
 
-        # tabsより前（proposal_draft の中）
-        if not ensure_pptx_path():
-            st.warning("PPTテンプレート（Blob）の取得に失敗しました。環境変数設定を確認してください。")
+        # ★追加：PPTテンプレを必ず用意（tabsより前）
+        try:
+            ensure_server_template_loaded()
+        except Exception as e:
+            st.error(f"PPTテンプレートの読み込みに失敗しました: {e}")
+            # ここで止めると後続の保存が必ず事故るので止めてOK
+            st.stop()
 
         # =========================================================
         # active_rev_id が変わったら、必ずそのrevを session_state に適用する
