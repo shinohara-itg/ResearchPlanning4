@@ -5020,8 +5020,9 @@ with center:
         render_character_guide2(
             "ここではクライアントと話した内容を整理しよう",
             "- 下から オリエンのファイルを読み込んでください。自動で内容を整理してくれるよ。\n"
-            "- 保存は不要です。\n"
-            "- 完了したら 「企画書下書き」 に進んでください。",
+            "- 完了したら 「企画書下書き」 に進んでください。\n"
+            "- 保存は不要です。あと、今後はオンラインのオリエンは録画して文字お越ししておくとここで読み込んで整理できるよ。\n"
+,
             img_width=500,
             kind="info",
         )
@@ -5398,7 +5399,7 @@ with center:
             # =========================================================
             # ★3レイヤー（WHY / WHAT / HOW）で入力欄を構造化
             # =========================================================
-            st.markdown("### 観点を3レイヤーで整理（WHY / WHAT / HOW）")
+            st.markdown("### ビジネス課題を3レイヤーで整理（WHY / WHAT / HOW）")
             #st.caption("上位→下位の順に埋めると、後続の『生成・比較』でブレにくくなります。")
 
             # WHY（上位）
@@ -5516,12 +5517,13 @@ with center:
                 "- キックオフノートからサブクエスチョンまでを生成して考察・比較するステップだよ。\n"
                 "- はじめに課題ピボットで作った中心となる課題を選んで「新規作成」を押してください。\n"
                 "- 中心となる課題を変えて「新規作成」を押すと、別なKON～SQが生成されるよ。\n"
-                "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。",
+                "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。\n"
+                "- KONやサブクエスチョンは書き換えられるよ。書き換えた後は下にある保存ボタンでそれぞれ保存してください。",
                 img_width=500,
                 kind="info",
             )
 
-            st.markdown("### KON～サブクエスチョン")
+            #markdown("### KON～サブクエスチョン")
 
             # =========================================================
             # ★課題ピボット（6観点）の受け取り（生成の軸）
@@ -5846,7 +5848,7 @@ with center:
 
                     with c1:
                         st.selectbox(
-                            "左に表示するKON～SQ（比較A）",
+                            "左に表示するKON～SQ",
                             options=rev_ids,
                             key="compare_left_rev_id",
                             format_func=_display_rev_name,
@@ -5855,7 +5857,7 @@ with center:
                         left_subq = (left_rev or {}).get("subq_list", [])
 
                         if left_rev:
-                            _render_kickoff_block_editable(left_rev, "左（比較A）", "cmp_left")
+                            _render_kickoff_block_editable(left_rev, "左", "cmp_left")
                         else:
                             st.info("左側に表示するRevisionを選択してください。")
 
@@ -5879,11 +5881,11 @@ with center:
                     c1, c2 = st.columns(2, gap="large")
 
                     with c1:
-                        _render_kon_sq_compact_view(left_rev, "左（比較A）", "cmp_left")
+                        _render_kon_sq_compact_view(left_rev, "左", "cmp_left")
 
                         # 編集用（保存ボタンで確定）
                         with st.expander("SQの編集（左）", expanded=False):
-                            _render_subq_block_editable(left_rev, "左（比較A）", "cmp_left")
+                            _render_subq_block_editable(left_rev, "左", "cmp_left")
 
                             if st.button("SQ変更を保存", use_container_width=True, key="btn_save_left_sq"):
                                 if left_rev and left_rev.get("rev_id"):
@@ -5929,10 +5931,10 @@ with center:
                                     st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
                                     st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
 
-                                    st.success("左（比較A）のSQを保存しました。")
+                                    st.success("左のSQを保存しました。")
                                     st.rerun()
                                 else:
-                                    st.warning("左（比較A）のRevisionが取得できません。")
+                                    st.warning("左のRevisionが取得できません。")
 
                     with c2:
                         _render_kon_sq_compact_view(right_rev, "右（比較B）", "cmp_right")
@@ -6000,7 +6002,7 @@ with center:
                     col_apply_l, col_apply_r = st.columns(2, gap="small")
 
                     with col_apply_l:
-                        if st.button("変更を保存", use_container_width=True, key="btn_apply_left_to_active"):
+                        if st.button("KONの変更を保存", use_container_width=True, key="btn_apply_left_to_active"):
                             if left_rev and left_rev.get("rev_id"):
                                 rid = left_rev["rev_id"]
 
@@ -6045,10 +6047,10 @@ with center:
                                 st.rerun()
 
                             else:
-                                st.warning("左（比較A）のRevisionが取得できません。")
+                                st.warning("左のRevisionが取得できません。")
 
                     with col_apply_r:
-                        if st.button("変更を保存", use_container_width=True, key="btn_apply_right_to_active"):
+                        if st.button("KONの変更を保存", use_container_width=True, key="btn_apply_right_to_active"):
                             if right_rev and right_rev.get("rev_id"):
                                 rid = right_rev["rev_id"]
 
@@ -6151,7 +6153,9 @@ with center:
                 "- ここはさっき作った“KON～SQ”を元に「分析イメージ」、「対象者条件」、「調査項目」を検討するステップだよ。\n"
                 "- まず検討を進めたい「KON～SQ」を選んでください。\n"
                 "- その後は「新規作成」を押しながらそれぞれのそれぞれの工程の内容を確認してね。\n"
-                "- ページの最下部に「PPTに保存」、「一時保存」のボタンがあるからそこから保存してね。\n",
+                "- 調査項目は分析イメージを元にしているけど、そこから少し幅を持たせた（広めの）内容になっているよ。\n"
+                "- 最後にページの最下部に「保存」のボタンがあるからそこから保存→ダウンロードしてね。\n"
+                "- ダウンロードできるのは検討結果をPPT形式にしたものと調査項目一覧のエクセル形式だよ。\n",
                 img_width=500,
                 kind="info",
             )
@@ -6211,7 +6215,7 @@ with center:
                 selector_key = f"active_revision_selector__{rev_sig}"
 
                 selected_rev_id = st.selectbox(
-                    "編集・PPT反映に使うRevision（アクティブ）",
+                    "分析アプローチ検討に使うKON～SQを選択してください",
                     options=rev_ids,
                     index=(rev_ids.index(active_id) if active_id in rev_ids else len(rev_ids) - 1),
                     format_func=_display_rev_name,
@@ -6394,7 +6398,7 @@ with center:
                         st.error(msg or "分析アプローチ生成に失敗しました。")
 
             with colb2:
-                st.caption("生成・比較タブではKON〜SQまで。ここで選択したRevisionを詳細化します。")
+                st.caption("問いを細分化します。")
 
             analysis_blocks = st.session_state.get("analysis_blocks", []) or []
 
@@ -6547,7 +6551,7 @@ with center:
                             st.error(msg)
 
                 with colx2:
-                    st.caption("下の表で “分析アプローチ→調査項目” の内容（形式/尺度/表頭・表側/採用）を編集できます。")
+                    st.caption("下の表で “分析アプローチ” の内容から調査項目を生成できます。")
 
                 rows = st.session_state.get("survey_item_rows", []) or []
                 if not rows:
@@ -6597,10 +6601,7 @@ with center:
                         axis=1
                     )
 
-                    st.markdown("#### 分析アプローチ（表頭） × 調査項目（行）")
-
-                    # 5列固定のため「採用/全件」などは一旦固定
-                    st.caption("（表示は5列固定。採用フラグ等は内部保持のままUIには出しません）")
+                    st.markdown("#### 調査項目一覧")
 
                     # UIに出すのは5列のみ（見出しを日本語に）
                     editor_df = df[ui_keys].rename(columns=ui_rename).copy()
@@ -6669,9 +6670,9 @@ with center:
             # PPT反映＆一時保存（中央ペイン）
             # =========================================================
             st.markdown("---")
-            st.markdown("### 保存（PPT + 調査項目Excel + JSON をZIPで出力）")
+            st.markdown("### 結果の保存→ダウンロード　※企画書PPT と 調査項目ExcelをZIPで出力できます。")
 
-            if st.button("保存（ZIP出力を作成）", use_container_width=True, key="btn_build_zip"):
+            if st.button("保存", use_container_width=True, key="btn_build_zip"):
 
                 # ★ここを追加：テンプレパスが無ければ先に落とす or エラーにする
                 if not st.session_state.get("pptx_path"):
@@ -6687,7 +6688,7 @@ with center:
 
             if st.session_state.get("final_zip_bytes"):
                 st.download_button(
-                    "ZIPをダウンロード",
+                    "ダウンロード",
                     data=st.session_state["final_zip_bytes"],
                     file_name=st.session_state.get("final_zip_name", "output.zip"),
                     mime="application/zip",
