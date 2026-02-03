@@ -5021,7 +5021,7 @@ with center:
             "ここではクライアントと話した内容を整理しよう",
             "- 下から オリエンのファイルを読み込んでください。自動で内容を整理してくれるよ。\n"
             "- 完了したら 「企画書下書き」 に進んでください。\n"
-            "- 保存は不要です。あと、今後はオンラインのオリエンは録画して文字お越ししておくとここで読み込んで整理できるよ。\n"
+            "- 保存は不要です。あと、今後はオンラインのオリエンは録画して文字おこししておくとここで読み込んで整理できるよ。\n"
 ,
             img_width=500,
             kind="info",
@@ -5863,7 +5863,7 @@ with center:
 
                     with c2:
                         st.selectbox(
-                            "右に表示するKON～SQ（比較B）",
+                            "右に表示するKON～SQ",
                             options=rev_ids,
                             key="compare_right_rev_id",
                             format_func=_display_rev_name,
@@ -5872,7 +5872,7 @@ with center:
                         right_subq = (right_rev or {}).get("subq_list", [])
 
                         if right_rev:
-                            _render_kickoff_block_editable(right_rev, "右（比較B）", "cmp_right")
+                            _render_kickoff_block_editable(right_rev, "右", "cmp_right")
                         else:
                             st.info("右側に表示するRevisionを選択してください。")
 
@@ -5937,11 +5937,11 @@ with center:
                                     st.warning("左のRevisionが取得できません。")
 
                     with c2:
-                        _render_kon_sq_compact_view(right_rev, "右（比較B）", "cmp_right")
+                        _render_kon_sq_compact_view(right_rev, "右", "cmp_right")
 
                         # 編集用（保存ボタンで確定）
                         with st.expander("SQの編集（右）", expanded=False):
-                            _render_subq_block_editable(right_rev, "右（比較B）", "cmp_right")
+                            _render_subq_block_editable(right_rev, "右", "cmp_right")
 
                             if st.button("SQ変更を保存", use_container_width=True, key="btn_save_right_sq"):
                                 if right_rev and right_rev.get("rev_id"):
@@ -5988,10 +5988,10 @@ with center:
                                     st.session_state["__force_compare_left_rev_id"] = st.session_state.get("compare_left_rev_id")
                                     st.session_state["__force_compare_right_rev_id"] = st.session_state.get("compare_right_rev_id")
 
-                                    st.success("右（比較B）のSQを保存しました。")
+                                    st.success("右のSQを保存しました。")
                                     st.rerun()
                                 else:
-                                    st.warning("右（比較B）のRevisionが取得できません。")
+                                    st.warning("右のRevisionが取得できません。")
 
                     # =========================================================
                     # KON～SQ（左右比較）の採用 → 編集タブ（分析イメージ）へ反映
@@ -6095,7 +6095,7 @@ with center:
                                 st.rerun()
 
                             else:
-                                st.warning("右（比較B）のRevisionが取得できません。")
+                                st.warning("右のRevisionが取得できません。")
 
 
 
@@ -6551,7 +6551,7 @@ with center:
                             st.error(msg)
 
                 with colx2:
-                    st.caption("下の表で “分析アプローチ” の内容から調査項目を生成できます。")
+                    st.caption("下の表で “分析アプローチ” の内容から調査項目を確認できます。")
 
                 rows = st.session_state.get("survey_item_rows", []) or []
                 if not rows:
