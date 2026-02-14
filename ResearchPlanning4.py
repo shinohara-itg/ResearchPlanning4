@@ -1939,44 +1939,6 @@ def run_phaseA_generation_and_append_revision(axis_text: str, axis_source: str =
     request_apply_revision(rev["rev_id"])
     return True, ""
 
-# def _render_kon_sq_compact_view(rev: dict | None, title: str, key_prefix: str):
-#     st.markdown(f"**{title}：KONの問い → サブクエスチョン（構造表示）**")
-#     if not rev:
-#         st.info("Revisionが未選択、または取得できませんでした。")
-#         return
-
-#     rev_id = rev.get("rev_id") or "no_rev"
-#     kickoff = (rev.get("kickoff") or {})
-#     kon_q = (kickoff.get("問い") or "").strip()
-
-#     subq_list = (rev.get("subq_list") or []) or []
-
-#     lines = []
-#     lines.append("【KON：問い】")
-#     lines.append(kon_q if kon_q else "（未設定）")
-#     lines.append("")
-#     lines.append("【SQ：サブクエスチョン】")
-
-#     if not subq_list:
-#         lines.append("（サブクエスチョンなし）")
-#     else:
-#         for i, sq in enumerate(subq_list, 1):
-#             sq_text = (sq.get("subq") or sq.get("question") or "").strip()
-#             lines.append(f"SQ{i}: {sq_text}")
-
-#     text = "\n".join(lines).strip()
-
-#     widget_key = f"{key_prefix}__{rev_id}__kon_sq_view"
-#     st.session_state[widget_key] = text  # 表示専用なので毎回上書きでOK
-
-#     st.text_area(
-#         "KON〜SQ（構造表示）",
-#         key=widget_key,
-#         height=320,
-#         disabled=True,  # ←まずは表示統一だけ。保存拡張は後で
-#     )
-
-
 
 
 
@@ -2021,10 +1983,10 @@ import pandas as pd
 
 def ensure_orien_outline():
     docs_text = "\n".join(st.session_state.get("uploaded_docs", []) or []).strip()
-    manual_text = (st.session_state.get("orien_outline_manual") or "").strip()
+    manual_text = (st.session_state.get("data_orien_outline_manual") or "").strip()
+    ai_text = (st.session_state.get("data_orien_outline_ai_draft") or "").strip()
 
-    # アップロードも手入力も無ければ生成不可
-    if not docs_text and not manual_text:
+    if not docs_text and not manual_text and not ai_text:
         return False, "オリエン資料（アップロード）または手入力内容がありません。"
 
     # AIには、資料抽出テキストを主に渡す（手入力は任意で補助）
@@ -2095,7 +2057,21 @@ def ensure_orien_outline():
 
         # 正本（手入力優先）
         manual_text = (st.session_state.get("data_orien_outline_manual") or "").strip()
-        st.session_state["orien_outline_text"] = manual_text if manual_text else ai_result
+        manual = (st.session_state.get("data_orien_outline_manual") or "").strip()
+        ai = (ai_result or "").strip()  # ここは data を使っても良い
+
+        if manual and ai:
+            st.session_state["orien_outline_text"] = (
+                "【手入力（最優先：追記・修正）】\n"
+                f"{manual}\n\n"
+                "【整理結果（所定フォーム：AI）】\n"
+                f"{ai}"
+            )
+        elif manual:
+            st.session_state["orien_outline_text"] = "【手入力（最優先：追記・修正）】\n" + manual
+        else:
+            st.session_state["orien_outline_text"] = "【整理結果（所定フォーム：AI）】\n" + ai
+        
 
 
         return True, ""
@@ -4160,14 +4136,18 @@ MODE_HINTS = {
     "proposal_draft": "まずは「課題ピボット」→「生成・比較」→「編集・PPT反映」の順で進めると迷いません。",
 }
 
+
+
 def switch_mode(next_mode: str):
-    if st.session_state.get("selected_mode") == "proposal_draft":
+    current = st.session_state.get("selected_mode")
+
+    if current == "オリエン内容の整理" and next_mode != "オリエン内容の整理":
+        sync_orien_from_ui()
+
+    if current == "proposal_draft":
         st.session_state.pop("__proposal_draft_hydrated", None)
 
     st.session_state["selected_mode"] = next_mode
-    #st.session_state["__ui_mode_hint"] = MODE_HINTS.get(next_mode, "")
-    if next_mode == "problem_reframe":
-        hydrate_reframe_ui_from_data_if_empty()
     st.rerun()
 
 
@@ -4183,7 +4163,19 @@ def sync_orien_from_ui():
     # 既存の後段参照キーもここで統一して作る（手入力最優先）
     manual = (st.session_state["data_orien_outline_manual"] or "").strip()
     ai = (st.session_state["data_orien_outline_ai_draft"] or "").strip()
-    st.session_state["orien_outline_text"] = manual if manual else ai
+
+    if manual and ai:
+        st.session_state["orien_outline_text"] = (
+            "【手入力（最優先：追記・修正）】\n"
+            f"{manual}\n\n"
+            "【整理結果（所定フォーム：AI）】\n"
+            f"{ai}"
+        )
+    elif manual:
+        st.session_state["orien_outline_text"] = "【手入力（最優先：追記・修正）】\n" + manual
+    else:
+        st.session_state["orien_outline_text"] = "【整理結果（所定フォーム：AI）】\n" + ai
+
 
 
 import pandas as pd
@@ -4699,11 +4691,14 @@ import streamlit as st
 
 
 
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+
 def _make_survey_items_excel_bytes(session_state) -> bytes:
     rows = session_state.get("survey_item_rows", []) or []
-    df = pd.DataFrame(rows)
 
-    # 5列だけ（内部キー → 日本語見出し）
     UI_COLS = [
         ("sq_id", "SQ_ID"),
         ("sq_subq", "サブクエスチョン文"),
@@ -4712,27 +4707,74 @@ def _make_survey_items_excel_bytes(session_state) -> bytes:
         ("axis", "分析軸"),
     ]
 
-    # 必要列を保証（過去互換）
-    for k, _ in UI_COLS:
-        if k not in df.columns:
-            df[k] = ""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "調査項目一覧"
 
-    # 互換：options が空なら items を使う（過去データ救済）
-    if "items" not in df.columns:
-        df["items"] = ""
-    df["options"] = df.apply(
-        lambda r: (str(r.get("options") or "").strip() or str(r.get("items") or "").strip()),
-        axis=1
+    # --- ヘッダ ---
+    ws.append([label for _, label in UI_COLS])
+
+    # --- データ ---
+    for r in rows:
+        ws.append([r.get(k, "") for k, _ in UI_COLS])
+
+    # ==========================================
+    # ★ 列幅設定
+    # ==========================================
+    ws.column_dimensions["A"].width = 7
+    ws.column_dimensions["B"].width = 40
+    ws.column_dimensions["C"].width = 40
+    ws.column_dimensions["D"].width = 40
+    ws.column_dimensions["E"].width = 40
+
+    # ==========================================
+    # ★ 折り返しなし・上寄せ
+    # ==========================================
+    normal_align = Alignment(
+        wrap_text=False,
+        vertical="top",
+        horizontal="left"
     )
 
-    # 5列だけに絞って日本語見出しへ
-    df_out = df[[k for k, _ in UI_COLS]].rename(columns={k: label for k, label in UI_COLS})
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=5):
+        for cell in row:
+            cell.alignment = normal_align
 
-    out = io.BytesIO()
-    with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        df_out.to_excel(writer, sheet_name="all_items", index=False)
+    # ==========================================
+    # ★ ヘッダ装飾
+    # ==========================================
+    header_fill = PatternFill("solid", fgColor="1F4E79")
+    header_font = Font(color="FFFFFF", bold=True)
+    header_align = Alignment(vertical="center", horizontal="center")
 
-    return out.getvalue()
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+
+    ws.row_dimensions[1].height = 22
+
+    # ==========================================
+    # ★ 罫線
+    # ==========================================
+    thin = Side(style="thin", color="A6A6A6")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row, min_col=1, max_col=5):
+        for cell in row:
+            cell.border = border
+
+    # ==========================================
+    # ★ フィルタ & 先頭固定
+    # ==========================================
+    ws.auto_filter.ref = ws.dimensions
+    ws.freeze_panes = "A2"
+
+    # 保存
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
 
 
 
@@ -4741,11 +4783,11 @@ def _make_project_json_bytes(session_state) -> bytes:
     s = json.dumps(proj, ensure_ascii=False, indent=2)
     return s.encode("utf-8")
 
-
-def _make_output_zip_bytes(session_state) -> tuple[bytes, str]:
+def _make_output_zip_bytes(session_state, ppt_filename=None, excel_filename=None) -> tuple[bytes, str]:
     """
     returns: (zip_bytes, zip_filename)
     """
+
     # ZIP名（プロジェクト名＋日時）
     project_name = (session_state.get("project_name") or "project").strip() or "project"
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -4758,20 +4800,22 @@ def _make_output_zip_bytes(session_state) -> tuple[bytes, str]:
     json_bytes = _make_project_json_bytes(session_state)
 
     # 3) PPT（反映済みPPTを生成）
-    # run_step4_apply_current_ui_to_ppt が (out_path, report) を返す想定なので
-    # out_path を読み込んで bytes化します
-    out_path, report = run_step4_apply_current_ui_to_ppt(session_state)  # ←あなたの既存関数
+    out_path, report = run_step4_apply_current_ui_to_ppt(session_state)
     ppt_bytes = out_path.read_bytes()
-    ppt_name = out_path.name  # 既存のファイル名をそのままZIPへ
+
+    # ★ここを変更：外から渡されたファイル名を優先
+    ppt_name = ppt_filename if ppt_filename else out_path.name
 
     # ZIP化
     zbuf = io.BytesIO()
     with zipfile.ZipFile(zbuf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr(f"{project_name}/survey_items.xlsx", excel_bytes)
+        excel_name = excel_filename if excel_filename else "survey_items.xlsx"
+        ppt_name = ppt_filename if ppt_filename else out_path.name
+        zf.writestr(f"{project_name}/{excel_name}", excel_bytes)
         zf.writestr(f"{project_name}/{project_name}.json", json_bytes)
         zf.writestr(f"{project_name}/{ppt_name}", ppt_bytes)
 
-        # 任意：反映レポートも入れると便利
+        # 任意：反映レポート
         rep = json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8")
         zf.writestr(f"{project_name}/ppt_apply_report.json", rep)
 
@@ -4811,14 +4855,73 @@ def ensure_pptx_path() -> bool:
         return False
 
 
-# =========================================================
-# pending apply（ウィジェット生成前にrev内容をsessionへ適用）
-# =========================================================
-# pending_id = st.session_state.pop("pending_apply_rev_id", None)
-# if pending_id:
-#     rev = find_revision(pending_id)
-#     if rev:
-#         apply_revision_to_session(rev)  # ←ここなら安全（まだウィジェットが作られていない）
+
+import re
+from datetime import datetime
+
+def safe_filename(text: str) -> str:
+    text = (text or "").strip()
+    text = re.sub(r'[\\/:*?"<>|]', "", text)  # 禁止文字除去
+    text = re.sub(r"\s+", "_", text)         # 空白→_
+    return text[:50]                         # 長さ制限（任意）
+
+
+def build_ppt_filename():
+    fixed_prefix = "企画書下書き"
+
+    brand = safe_filename(st.session_state.get("target_brand", ""))
+    project = safe_filename(st.session_state.get("project_name", ""))
+
+    today = datetime.now().strftime("%Y%m%d")
+
+    parts = [fixed_prefix]
+
+    if brand:
+        parts.append(brand)
+
+    if project:
+        parts.append(project)
+
+    parts.append(today)
+
+    filename = "_".join(parts) + ".pptx"
+    return filename
+
+
+
+def build_excel_filename():
+    fixed_prefix = "調査項目案"
+
+    brand = safe_filename(st.session_state.get("target_brand", ""))
+    project = safe_filename(st.session_state.get("project_name", ""))
+
+    today = datetime.now().strftime("%Y%m%d")
+
+    parts = [fixed_prefix]
+
+    if brand:
+        parts.append(brand)
+
+    if project:
+        parts.append(project)
+
+    parts.append(today)
+
+    return "_".join(parts) + ".xlsx"
+
+
+
+
+
+# ====================================================================================================
+# ====================================================================================================
+# 以降、UI構築コード（ウィジェット生成など）。
+# ====================================================================================================
+# ====================================================================================================
+
+
+
+
 
 
 
@@ -4877,7 +4980,7 @@ with left:
 
 
     #=========================================Azure に載せるときはコメントアウト=========================================
-    # PPTテンプレートアップロード（セッション専用ディレクトリに保存）
+   #PPTテンプレートアップロード（セッション専用ディレクトリに保存）
     # uploaded_pptx = st.file_uploader(
     #     "企画書テンプレートをアップロードしてください（PPTX）",
     #     type=["pptx"],
@@ -4956,8 +5059,10 @@ with center:
     #WATCH_PREFIXES = ("pivot_", "reframe_", "proposal_", "kickoff_", "analysis_", "ai_", "survey_", "problem_", "orien_")
     WATCH_PREFIXES = (
         "pivot_", "reframe_", "proposal_", "kickoff_", "analysis_", "ai_", "survey_", "problem_", "orien_",
-        "draft_", "edit_", "EDIT_", "ppt_", "pptx_", "slide_", "tab_", "gen_", "cmp_", "rev_"
+        "draft_", "edit_", "EDIT_", "ppt_", "pptx_", "slide_", "tab_", "gen_", "cmp_", "rev_",
+        "data_", "ui_"   # ★追加
     )
+
 
 
     def _snap(prefixes=WATCH_PREFIXES) -> dict:
@@ -4984,28 +5089,6 @@ with center:
         changed = sorted([k for k in (b & a) if before.get(k) != after.get(k)])
         return {"removed": removed[:80], "added": added[:80], "changed": changed[:80]}
 
-    # モード変化検出
-    if "__dbg_prev_mode" not in st.session_state:
-        st.session_state["__dbg_prev_mode"] = mode
-        st.session_state["__dbg_prev_snap"] = _snap()
-
-    if mode != st.session_state.get("__dbg_prev_mode"):
-        before = st.session_state.get("__dbg_prev_snap", {})
-        after = _snap()
-        st.session_state["__dbg_mode_change"] = {
-            "from": st.session_state.get("__dbg_prev_mode"),
-            "to": mode,
-            "diff": _diff(before, after),
-        }
-        st.session_state["__dbg_prev_mode"] = mode
-        st.session_state["__dbg_prev_snap"] = after
-
-    # dbg = st.session_state.get("__dbg_mode_change")
-    # if dbg:
-    #     st.warning(f"DEBUG mode change: {dbg['from']} -> {dbg['to']}")
-    #     st.json(dbg["diff"])
-
-
 
 
 
@@ -5026,13 +5109,6 @@ with center:
             img_width=500,
             kind="info",
         )
-        # st.caption(
-        #     f"DEBUG orien_ai_draft len={len(st.session_state.get('data_orien_outline_ai_draft',''))} / "
-        #     f"manual len={len(st.session_state.get('data_orien_outline_manual',''))} / "
-        #     f"uploaded_docs={len(st.session_state.get('uploaded_docs',[]) or [])}"
-        # )
-
-
 
         uploaded_files = st.file_uploader(
             "オリエン資料をアップロードしてください（PDF / PPTX / TXT / DOCX / XLSX / ZIP）",
@@ -5057,7 +5133,8 @@ with center:
 
         with col1:
             # 表示直前に data -> ui を注入（UIが消えても data は残る）
-            st.session_state["ui_orien_outline_ai_draft"] = st.session_state.get("data_orien_outline_ai_draft", "")
+            if "ui_orien_outline_ai_draft" not in st.session_state:
+                st.session_state["ui_orien_outline_ai_draft"] = st.session_state.get("data_orien_outline_ai_draft", "")
 
             st.text_area(
                 "整理結果（所定フォーム）",
@@ -5067,7 +5144,8 @@ with center:
             )
 
         with col2:
-            st.session_state["ui_orien_outline_manual"] = st.session_state.get("data_orien_outline_manual", "")
+            if "ui_orien_outline_manual" not in st.session_state:
+                st.session_state["ui_orien_outline_manual"] = st.session_state.get("data_orien_outline_manual", "")
 
             st.text_area(
                 "手入力（最優先：追記・修正）",
@@ -5076,10 +5154,7 @@ with center:
                 placeholder="ここに補足・修正を入力すると、この内容が最優先で後工程に反映されます。",
                 on_change=sync_orien_from_ui,
             )
-
-        # 統合用の正本を同期（後段処理の参照先）
-        sync_orien_from_ui()
-
+            # st.write("DEBUG raw ui_orien_outline_manual =", repr(st.session_state.get("ui_orien_outline_manual")))
 
 
     # ----------------------------------------
@@ -5258,11 +5333,40 @@ with center:
 
     elif mode == "proposal_draft":
 
+
+        def _dbg_orien(tag: str):
+            st.session_state[f"__dbg_orien_{tag}"] = {
+                "ui_manual": len((st.session_state.get("ui_orien_outline_manual") or "").strip()),
+                "data_manual": len((st.session_state.get("data_orien_outline_manual") or "").strip()),
+                "ui_ai": len((st.session_state.get("ui_orien_outline_ai_draft") or "").strip()),
+                "data_ai": len((st.session_state.get("data_orien_outline_ai_draft") or "").strip()),
+                "outline": len((st.session_state.get("orien_outline_text") or "").strip()),
+            }
+
+        _dbg_orien("proposal_enter")
+
+
+        _dbg_orien("before_anything")
+
+        # 1) ensure_revision_store の前後
+        _dbg_orien("before_ensure_revision_store")
         ensure_revision_store()
+        _dbg_orien("after_ensure_revision_store")
+
+        # 2) template load の前後
+        _dbg_orien("before_template_loaded")
+        ensure_server_template_loaded()
+        _dbg_orien("after_template_loaded")
+
+        # 3) hydrate/apply の直前直後（すでにあるなら、その直後に _dbg_orien を追加）
+        ensure_revision_store()
+        _dbg_orien("after_revision_store")
 
         # ★追加：PPTテンプレを必ず用意（tabsより前）
         try:
             ensure_server_template_loaded()
+            _dbg_orien("after_template_loaded")
+
         except Exception as e:
             st.error(f"PPTテンプレートの読み込みに失敗しました: {e}")
             # ここで止めると後続の保存が必ず事故るので止めてOK
@@ -5300,17 +5404,6 @@ with center:
         # 1) KON～SQ からの「採用して反映」予約を最優先で処理（UI生成より前）
         #    ※ pending_apply_rev_id はここで 1回だけ pop する
         # -------------------------------------------------
-        # pending_id = st.session_state.pop("pending_apply_rev_id", None)
-        # if pending_id:
-        #     rev = find_revision(pending_id)
-        #     if rev:
-        #         st.session_state["active_rev_id"] = pending_id
-        #         apply_revision_to_session(rev)
-
-        #         # hydration 管理をリセット（後段の保険）
-        #         st.session_state["__hydrated_rev_id"] = pending_id
-        #     else:
-        #         st.warning("採用したRevisionが見つかりませんでした（削除された可能性があります）。")
 
         # -------------------------------------------------
         # 2) hydration（active_rev_id が変わった時だけ apply）
@@ -5328,7 +5421,7 @@ with center:
         # -------------------------------------------------
         st.markdown("## 企画書下書き")
         st.session_state["proposal_draft_generated"] = bool(get_revisions())
-
+        # st.info("👇 ここから3つのタブで手順を切り替えます（左→右に進みます）: ①課題ピボット → ②KON～SQ → ③分析イメージ")
         tab_pivot, tab_gen, tab_edit = st.tabs(["課題ピボット", "KON～SQ", "分析イメージ"])
 
 
@@ -5337,7 +5430,7 @@ with center:
         # TAB 1: 課題ピボット
         # =========================================================
         with tab_pivot:
-
+            # st.markdown("## ① 課題ピボット（このタブ）")
             render_character_guide3(
                 "課題のピボット",
                 "- クライアントが言ったことを一度立ち止まって考えるステップだよ。\n"
@@ -5345,7 +5438,7 @@ with center:
                 "- 「新規作成」ボタンを押して下さい。オリエン内容をもとに課題の背景を考察するよ。\n"
                 "- ここでは眺めるだけでOK。もし自分なりの考えがあれば「クライアント課題（手書き）」に直接記入してください。\n"
                 "- 確認が済んだらページ下にある 「確認完了」 を押してください。\n"
-                "- 次は「KON～SQ」タブに進みます。",
+                "- 次は「KON～SQ」タブに進みます。タブは僕の頭の上のあたりに小さく表示されているから見落とさないように。",
                 img_width=500,
                 kind="info",
             )
@@ -5404,7 +5497,7 @@ with center:
 
             # WHY（上位）
             with st.container(border=True):
-                st.markdown("#### WHY（上位）：事業視点 — 何が問題で、なぜ調査するのか")
+                st.markdown("#### WHY：何が問題で、なぜ調査するのか（事業視点）")
                 st.text_area(
                     "事業やブランドが抱える課題（根本課題）",
                     key="reframe_c4_business_brand",
@@ -5413,7 +5506,7 @@ with center:
 
             # WHAT（中位）
             with st.container(border=True):
-                st.markdown("#### WHAT（中位）：意思決定視点 — 調査で何を明らかにし、何を判断するのか")
+                st.markdown("#### WHAT：調査で何を明らかにし、何を判断するのか（意思決定視点）")
                 st.text_area(
                     "報告先（組織長など）が知りたいこと（意思決定論点）",
                     key="reframe_c2_exec_summary",
@@ -5422,7 +5515,7 @@ with center:
 
             # HOW（下位）
             with st.container(border=True):
-                st.markdown("#### HOW（下位）：実行視点 — 誰が何を担い、調査後にどう動くのか")
+                st.markdown("#### HOW： 誰が何を担い、調査後にどう動くのか（実行視点）")
                 st.text_area(
                     "調査結果を受けて次にすること（ネクストアクション）",
                     key="reframe_c1_next_action",
@@ -5511,14 +5604,15 @@ with center:
         # TAB 2: 課題マトリクス選択 + PhaseA生成（KON〜SQ） + 左右比較
         # =========================================================
         with tab_gen:
-
             render_character_guide3(
                 "KON〜SQ",
                 "- キックオフノートからサブクエスチョンまでを生成して考察・比較するステップだよ。\n"
                 "- はじめに課題ピボットで作った中心となる課題を選んで「新規作成」を押してください。\n"
                 "- 中心となる課題を変えて「新規作成」を押すと、別なKON～SQが生成されるよ。\n"
+                "- 「新規作成」後、別の切り口でも探索したい場合は、「中心となる課題」を変えて「新規作成」ボタンを押すと前後で比較できるようになるよ。\n"
                 "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。\n"
-                "- KONやサブクエスチョンは書き換えられるよ。書き換えた後は下にある保存ボタンでそれぞれ保存してください。",
+                "- KONやサブクエスチョンは書き換えられるよ。書き換えた後は下にある保存ボタンでそれぞれ保存してください。\n"
+                "- 次は「分析イメージ」タブに進みます。(これで最後！)",
                 img_width=500,
                 kind="info",
             )
@@ -6099,49 +6193,6 @@ with center:
 
 
 
-                # --- ここから下は既存の削除UIへ（あなたのコードをそのまま続けてOK） ---
-
-                # =========================================================
-                # Revision 削除 UI（生成・比較タブ）
-                # =========================================================
-                # st.markdown("---")
-                # st.markdown("### Revisionの削除")
-
-                # # default は削除不可にする
-                # deletable_revs = [r for r in revs if r.get("stage") != "default"]
-
-                # if not deletable_revs:
-                #     st.caption("削除可能なRevisionはありません。")
-                # else:
-                #     del_options = {r["label"]: r["rev_id"] for r in deletable_revs}
-                #     del_labels = list(del_options.keys())
-
-                #     del_label = st.selectbox(
-                #         "削除するRevisionを選択",
-                #         options=del_labels,
-                #         key="delete_revision_label",
-                #     )
-                #     del_rev_id = del_options[del_label]
-
-                #     st.warning("この操作は元に戻せません。")
-
-                #     confirm = st.checkbox(
-                #         "本当にこのRevisionを削除する",
-                #         key="delete_revision_confirm",
-                #     )
-
-                #     if st.button(
-                #         "選択したRevisionを削除",
-                #         use_container_width=True,
-                #         disabled=not confirm,
-                #     ):
-                #         ok, msg = delete_revision(del_rev_id)
-                #         if ok:
-                #             st.success("Revisionを削除しました。")
-                #             st.rerun()
-                #         else:
-                #             st.error(msg)
-
 
         # =========================================================
         # TAB 3: アクティブRevision選択 + 企画内容レビュー（編集UI / PhaseB詳細化）
@@ -6372,17 +6423,6 @@ with center:
 
             colb1, colb2 = st.columns([1, 3], gap="small")
 
-            # rev_dbg = get_active_revision() or {}
-            # ss_sq1 = ((st.session_state.get("subq_list") or [{}])[0] or {}).get("subq")
-            # rev_sq1 = (((rev_dbg.get("subq_list") or [{}])[0]) or {}).get("subq")
-
-            # st.write("DEBUG ss subq_list[0].subq:", ss_sq1)
-            # st.write("DEBUG rev subq_list[0].subq:", rev_sq1)
-            # st.write("DEBUG ss ai_subquestions head:", (st.session_state.get("ai_subquestions") or "")[:80])
-            # st.write("DEBUG rev subquestions_raw head:", (rev_dbg.get("subquestions_raw") or "")[:80])
-
-
-
             with colb1:
                 if st.button("新規作成", use_container_width=True, key=f"btn_gen_analysis_phaseB__{active_id}"):
                     with st.spinner("分析アプローチを生成しています..."):
@@ -6502,11 +6542,6 @@ with center:
                 st.caption("軸（課題ピボット）・KON・サブクエスチョンに整合する対象者条件を提案します。")
 
 
-            # if st.session_state.get("__dbg_tc_timeline"):
-            #     st.warning(f"DEBUG tc timeline: {st.session_state['__dbg_tc_timeline']}")
-            #     st.warning(f"DEBUG tc rev_len_after_save: {st.session_state.get('__dbg_tc_rev_len_after_save')}")
-
-
             # ① editor を唯一のUIソースにする（value= は使わない）
             st.text_area(
                 "対象者条件案（編集可）",
@@ -6522,10 +6557,6 @@ with center:
                 # editorが空でも、既に ai_target_condition があるなら保持
                 st.session_state["ai_target_condition"] = st.session_state.get("ai_target_condition", "") or ""
 
-
-            # if get_active_revision() is not None:
-            #     save_session_keys_to_active_revision()
-
             st.markdown("---")
 
             # =========================================================
@@ -6540,7 +6571,7 @@ with center:
                 colx1, colx2 = st.columns([1, 3], gap="small")
                 with colx1:
                     if st.button("新規作成", use_container_width=True, key="btn_gen_linked_items"):
-                        with st.spinner("分析アプローチに紐づく調査項目を生成しています..."):
+                        with st.spinner("分析アプローチに紐づく調査項目を生成しています...(生成には2～3分かかることがあります)"):
                             ok, msg = generate_survey_items_linked_draft()
                         if ok:
                             if get_active_revision() is not None:
@@ -6672,20 +6703,43 @@ with center:
             st.markdown("---")
             st.markdown("### 結果の保存→ダウンロード　※企画書PPT と 調査項目ExcelをZIPで出力できます。")
 
+            # st.text_input(
+            #     "案件名（ファイル名に使用されます）",
+            #     key="project_name",
+            #     placeholder="例：2026年春キャンペーン調査",
+            # )
+
+            # ★⑤：事前に「出力されるPPT名」を見せる（ユーザーが安心する）
+            try:
+                ppt_filename_preview = build_ppt_filename()
+                st.caption(f"出力されるPPTファイル名（予定）：{ppt_filename_preview}")
+            except Exception:
+                # build_ppt_filename が未定義などでも画面が落ちないように保険
+                ppt_filename_preview = None
+
             if st.button("保存", use_container_width=True, key="btn_build_zip"):
 
-                # ★ここを追加：テンプレパスが無ければ先に落とす or エラーにする
                 if not st.session_state.get("pptx_path"):
-                    st.error("pptx_path が未設定です。PPTテンプレートを先にセットしてください（BlobからDLする処理が必要です）。")
+                    st.error("pptx_path が未設定です。PPTテンプレートを先にセットしてください。")
                 else:
                     try:
-                        zip_bytes, zip_name = _make_output_zip_bytes(st.session_state)
+                        ppt_filename = build_ppt_filename()
+                        excel_filename = build_excel_filename()
+
+                        zip_bytes, zip_name = _make_output_zip_bytes(
+                            st.session_state,
+                            ppt_filename=ppt_filename,
+                            excel_filename=excel_filename,   # ★追加
+                        )
+
                         st.session_state["final_zip_bytes"] = zip_bytes
                         st.session_state["final_zip_name"] = zip_name
                         st.success("ZIPを作成しました。下のボタンからダウンロードできます。")
+
                     except Exception as e:
                         st.error(f"保存用ZIPの作成に失敗しました: {e}")
 
+            
             if st.session_state.get("final_zip_bytes"):
                 st.download_button(
                     "ダウンロード",
