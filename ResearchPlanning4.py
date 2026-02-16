@@ -1595,8 +1595,18 @@ def apply_revision_to_session(rev: dict) -> None:
     st.session_state["ai_subquestions"] = rev.get("subquestions_raw", "") or ""
 
     # 表示キャッシュは切替時にクリア（残像対策）
-    st.session_state.pop("subq_structured_view", None)
+    # st.session_state.pop("subq_structured_view", None)
+    # st.session_state.pop("EDIT1_subQ", None)
+    # 表示キャッシュは切替時にクリア（残像対策）
+    # NOTE: subq_structured_view は rev_id 付きキーで使っているので、同じ形で消す
+    rid = (rev.get("rev_id") or st.session_state.get("active_rev_id") or "").strip()
+    if rid:
+        st.session_state.pop(f"subq_structured_view__{rid}", None)
+
+    # ついでに、過去の実装で EDIT1_subQ を使っていた場合の残骸もクリア（任意）
     st.session_state.pop("EDIT1_subQ", None)
+
+
 
     # --------------------
     # 3) 分析アプローチ
@@ -1669,19 +1679,18 @@ def apply_revision_to_session(rev: dict) -> None:
         st.session_state[ss_key] = val
 
     # 7) 課題変換（前処理）
+    # 7) 課題変換（前処理）
     pr = rev.get("problem_reframe", {}) or {}
 
-    _safe_set("reframe_c1_next_action", pr.get("c1_next_action", ""))
-    _safe_set("reframe_c2_exec_summary", pr.get("c2_exec_summary", ""))
-    _safe_set("reframe_c4_business_brand", pr.get("c4_business_brand", ""))
-    _safe_set("reframe_c6_user_notes", pr.get("c6_user_notes", ""))
+    st.session_state["reframe_c1_next_action"]   = pr.get("c1_next_action", "") or ""
+    st.session_state["reframe_c2_exec_summary"]  = pr.get("c2_exec_summary", "") or ""
+    st.session_state["reframe_c4_business_brand"]= pr.get("c4_business_brand", "") or ""
+    st.session_state["reframe_c6_user_notes"]    = pr.get("c6_user_notes", "") or ""
 
-    _safe_set("problem_reframe_output", pr.get("output", {}) or {})
-    _safe_set("true_problem_text", rev.get("true_problem_text", "") or "")
-    _safe_set(
-        "problem_reframe_generated",
-        bool(pr.get("output", {}) or {})
-    )
+    st.session_state["problem_reframe_output"] = pr.get("output", {}) or {}
+    st.session_state["true_problem_text"]      = rev.get("true_problem_text", "") or ""
+    st.session_state["problem_reframe_generated"] = bool(pr.get("output", {}) or {})
+
 
 
 
@@ -1986,6 +1995,7 @@ def ensure_orien_outline():
     manual_text = (st.session_state.get("data_orien_outline_manual") or "").strip()
     ai_text = (st.session_state.get("data_orien_outline_ai_draft") or "").strip()
 
+    #if not docs_text and not manual_text:
     if not docs_text and not manual_text and not ai_text:
         return False, "オリエン資料（アップロード）または手入力内容がありません。"
 
@@ -4912,6 +4922,18 @@ def build_excel_filename():
 
 
 
+# =========================================================
+# pending apply（ウィジェット生成前にrev内容をsessionへ適用）
+# =========================================================
+# pending_id = st.session_state.pop("pending_apply_rev_id", None)
+# if pending_id:
+#     rev = find_revision(pending_id)
+#     if rev:
+#         apply_revision_to_session(rev)  # ←ここなら安全（まだウィジェットが作られていない）
+
+
+
+
 
 # ====================================================================================================
 # ====================================================================================================
@@ -4957,26 +4979,6 @@ with left:
 
     st.divider()
 
-
-    # # 保存済みプロジェクトの読み込み
-    # uploaded_proj = st.file_uploader(
-    #     "保存済みファイル読み込み",
-    #     type=["json"],
-    #     key="project_json_upload",
-    # )
-
-    # if uploaded_proj is not None:
-    #     if st.button("このプロジェクトを読み込んで再編集を開始", use_container_width=True):
-    #         try:
-    #             raw = uploaded_proj.getvalue()  # read() ではなく getvalue()
-    #             proj_loaded = json.loads(raw.decode("utf-8-sig"))
-
-    #             # ここでは apply せず、「予約」だけして rerun
-    #             st.session_state["pending_project"] = proj_loaded
-    #             st.rerun()
-
-    #         except Exception as e:
-    #             st.error(f"プロジェクト読み込み中にエラーが発生しました: {e}")
 
 
     #=========================================Azure に載せるときはコメントアウト=========================================
@@ -5110,6 +5112,7 @@ with center:
             kind="info",
         )
 
+
         uploaded_files = st.file_uploader(
             "オリエン資料をアップロードしてください（PDF / PPTX / TXT / DOCX / XLSX / ZIP）",
             type=["pdf", "pptx", "txt", "docx", "xlsx", "zip"],
@@ -5154,7 +5157,6 @@ with center:
                 placeholder="ここに補足・修正を入力すると、この内容が最優先で後工程に反映されます。",
                 on_change=sync_orien_from_ui,
             )
-            # st.write("DEBUG raw ui_orien_outline_manual =", repr(st.session_state.get("ui_orien_outline_manual")))
 
 
     # ----------------------------------------
@@ -5405,6 +5407,7 @@ with center:
         #    ※ pending_apply_rev_id はここで 1回だけ pop する
         # -------------------------------------------------
 
+
         # -------------------------------------------------
         # 2) hydration（active_rev_id が変わった時だけ apply）
         #    ＝初回 or active切替時に必ず session_state を同期
@@ -5604,12 +5607,13 @@ with center:
         # TAB 2: 課題マトリクス選択 + PhaseA生成（KON〜SQ） + 左右比較
         # =========================================================
         with tab_gen:
+
             render_character_guide3(
                 "KON〜SQ",
                 "- キックオフノートからサブクエスチョンまでを生成して考察・比較するステップだよ。\n"
                 "- はじめに課題ピボットで作った中心となる課題を選んで「新規作成」を押してください。\n"
                 "- 中心となる課題を変えて「新規作成」を押すと、別なKON～SQが生成されるよ。\n"
-                "- 「新規作成」後、別の切り口でも探索したい場合は、「中心となる課題」を変えて「新規作成」ボタンを押すと前後で比較できるようになるよ。\n"
+                "- 「新規作成」後、別の切り口でも探索したい場合は、「中心となる課題」を変えて「新規作成」ボタンを押すと前後で比較可能です。\n"
                 "- ちなみに、SQとはサブクエスチョン（KONの「問い」に答えるために設定する下位項目）のことです。\n"
                 "- KONやサブクエスチョンは書き換えられるよ。書き換えた後は下にある保存ボタンでそれぞれ保存してください。\n"
                 "- 次は「分析イメージ」タブに進みます。(これで最後！)",
@@ -6193,6 +6197,49 @@ with center:
 
 
 
+                # --- ここから下は既存の削除UIへ（あなたのコードをそのまま続けてOK） ---
+
+                # =========================================================
+                # Revision 削除 UI（生成・比較タブ）
+                # =========================================================
+                # st.markdown("---")
+                # st.markdown("### Revisionの削除")
+
+                # # default は削除不可にする
+                # deletable_revs = [r for r in revs if r.get("stage") != "default"]
+
+                # if not deletable_revs:
+                #     st.caption("削除可能なRevisionはありません。")
+                # else:
+                #     del_options = {r["label"]: r["rev_id"] for r in deletable_revs}
+                #     del_labels = list(del_options.keys())
+
+                #     del_label = st.selectbox(
+                #         "削除するRevisionを選択",
+                #         options=del_labels,
+                #         key="delete_revision_label",
+                #     )
+                #     del_rev_id = del_options[del_label]
+
+                #     st.warning("この操作は元に戻せません。")
+
+                #     confirm = st.checkbox(
+                #         "本当にこのRevisionを削除する",
+                #         key="delete_revision_confirm",
+                #     )
+
+                #     if st.button(
+                #         "選択したRevisionを削除",
+                #         use_container_width=True,
+                #         disabled=not confirm,
+                #     ):
+                #         ok, msg = delete_revision(del_rev_id)
+                #         if ok:
+                #             st.success("Revisionを削除しました。")
+                #             st.rerun()
+                #         else:
+                #             st.error(msg)
+
 
         # =========================================================
         # TAB 3: アクティブRevision選択 + 企画内容レビュー（編集UI / PhaseB詳細化）
@@ -6423,6 +6470,17 @@ with center:
 
             colb1, colb2 = st.columns([1, 3], gap="small")
 
+            # rev_dbg = get_active_revision() or {}
+            # ss_sq1 = ((st.session_state.get("subq_list") or [{}])[0] or {}).get("subq")
+            # rev_sq1 = (((rev_dbg.get("subq_list") or [{}])[0]) or {}).get("subq")
+
+            # st.write("DEBUG ss subq_list[0].subq:", ss_sq1)
+            # st.write("DEBUG rev subq_list[0].subq:", rev_sq1)
+            # st.write("DEBUG ss ai_subquestions head:", (st.session_state.get("ai_subquestions") or "")[:80])
+            # st.write("DEBUG rev subquestions_raw head:", (rev_dbg.get("subquestions_raw") or "")[:80])
+
+
+
             with colb1:
                 if st.button("新規作成", use_container_width=True, key=f"btn_gen_analysis_phaseB__{active_id}"):
                     with st.spinner("分析アプローチを生成しています..."):
@@ -6542,6 +6600,11 @@ with center:
                 st.caption("軸（課題ピボット）・KON・サブクエスチョンに整合する対象者条件を提案します。")
 
 
+            # if st.session_state.get("__dbg_tc_timeline"):
+            #     st.warning(f"DEBUG tc timeline: {st.session_state['__dbg_tc_timeline']}")
+            #     st.warning(f"DEBUG tc rev_len_after_save: {st.session_state.get('__dbg_tc_rev_len_after_save')}")
+
+
             # ① editor を唯一のUIソースにする（value= は使わない）
             st.text_area(
                 "対象者条件案（編集可）",
@@ -6556,6 +6619,10 @@ with center:
             else:
                 # editorが空でも、既に ai_target_condition があるなら保持
                 st.session_state["ai_target_condition"] = st.session_state.get("ai_target_condition", "") or ""
+
+
+            # if get_active_revision() is not None:
+            #     save_session_keys_to_active_revision()
 
             st.markdown("---")
 
